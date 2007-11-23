@@ -22,7 +22,7 @@ struct sprite_mode {
 	uint32_t ydpi;
 };
 
-struct sprite_header {
+struct sprite {
 	unsigned char name[13]; /* last byte for 0 terminator */
 	struct sprite_mode* mode;
 	bool hasmask;
@@ -31,6 +31,13 @@ struct sprite_header {
 	uint32_t* palette;
 	uint32_t width; /* width and height in _pixels_ */
 	uint32_t height;
+};
+
+struct sprite_header {
+	uint32_t width_words; /* width and height in words */
+	uint32_t height_words;
+	uint32_t first_used_bit; /* old format only (spriteType = 0) */
+	uint32_t last_used_bit;
 };
 
 uint32_t sprite_read_word(FILE* stream)
@@ -46,7 +53,7 @@ uint32_t sprite_read_word(FILE* stream)
 	return BTUINT(b);
 }
 
-void sprite_read_bytes(FILE* stream, unsigned char* buf, size_t count)
+void sprite_read_bytes(FILE* stream, uint8_t* buf, size_t count)
 {
 	size_t bytesRead = fread(buf, 1, count, stream);
 	
@@ -155,9 +162,92 @@ struct sprite_mode* sprite_get_mode(uint32_t spriteMode)
 	return mode;
 }
 
-/*sprite_get_image(struct sprite_header* header)
+void sprite_load_image(uint8_t* image, uint8_t* mask, struct sprite* sprite, struct sprite_header* header)
 {
-}*/
+	image = image; mask = mask; sprite = sprite; header = header;
+}
+
+struct sprite* sprite_load_sprite(FILE* spritefile)
+{
+	uint32_t nextSpriteOffset = sprite_read_word(spritefile);
+
+	struct sprite* sprite = malloc(sizeof(struct sprite));
+	struct sprite_header* header = malloc(sizeof(struct sprite_header));
+
+	sprite_read_bytes(spritefile, sprite->name, 12);
+	sprite->name[12] = '\0';
+
+	header->width_words     = sprite_read_word(spritefile) + 1; /* file has width - 1 and height - 1 */
+	header->height_words    = sprite_read_word(spritefile) + 1;
+	header->first_used_bit  = sprite_read_word(spritefile); /* old format only (spriteType = 0) */
+	header->last_used_bit   = sprite_read_word(spritefile);
+
+	uint32_t imageOffset    = sprite_read_word(spritefile);
+	assert(imageOffset >= 44); /* should never be smaller than the size of the header) */
+
+	uint32_t maskOffset     = sprite_read_word(spritefile);
+	uint32_t spriteModeWord = sprite_read_word(spritefile);
+
+	sprite->mode = sprite_get_mode(spriteModeWord);
+	assert(sprite->mode->colorbpp > 0);
+	assert(sprite->mode->xdpi > 0);
+	assert(sprite->mode->ydpi > 0);
+
+	sprite->palettesize     = imageOffset - 44;
+	sprite->haspalette      = (sprite->palettesize > 0);
+
+	uint32_t imageSize;
+	uint32_t maskSize;
+
+	if (imageOffset == maskOffset) {
+		sprite->hasmask = false;
+		imageSize = nextSpriteOffset - 44 - sprite->palettesize;
+		maskSize  = 0;
+	} else {
+		sprite->hasmask   = true;
+		imageSize = maskOffset - imageOffset;
+		maskSize  = nextSpriteOffset - 44 - sprite->palettesize - imageSize;
+	}
+
+	if (sprite->hasmask) LOGDBG("maskSize %u\n", maskSize);
+	
+	uint32_t* palette = NULL;
+	if (sprite->haspalette) {
+		assert(sprite->palettesize % 8 == 0);
+		palette = malloc(sizeof(uint32_t) * sprite->palettesize);
+		uint32_t paletteEntries = sprite->palettesize / 8;
+
+		/* Each palette entry is two words big
+			* The second word is a duplicate of the first
+			* I think this is in case you ever wanted flashing colours
+			* PRM1-730
+			*/
+		for (uint32_t j = 0; j < paletteEntries; j++) {
+			uint32_t word1 = sprite_read_word(spritefile);
+			uint32_t word2 = sprite_read_word(spritefile);
+			assert(word1 == word2); /* TODO: if they aren't, START FLASHING */
+			
+			palette[j] = word1;
+		}
+	}
+
+	uint8_t* image = malloc(imageSize);
+	sprite_read_bytes(spritefile, image, imageSize);
+
+	uint8_t* mask = malloc(maskSize);
+	sprite_read_bytes(spritefile, mask, maskSize);
+
+	/* sanity check imageSize */
+	assert((header->width_words) * 4 * (header->height_words) == imageSize);
+	/* TODO: sanity check maskSize */
+	sprite_load_image(image, mask, sprite, header);
+
+	free(image);
+	free(mask);
+	free(header);
+
+	return sprite;
+}
 
 int main(int argc, char *argv[])
 {
@@ -193,101 +283,20 @@ int main(int argc, char *argv[])
 	}
 
 	for (uint32_t i = 0; i < spriteCount; i++) {
-		uint32_t nextSpriteOffset = sprite_read_word(spritefile);
+		struct sprite* sprite = sprite_load_sprite(spritefile);
+		LOGDBG("\nname %s\n", sprite->name);
+		LOGDBG("\tcolorbpp %u\n", sprite->mode->colorbpp);
+		LOGDBG("\txdpi %u\n", sprite->mode->xdpi);
+		LOGDBG("\tydpi %u\n", sprite->mode->ydpi);
+	
+		LOGDBG("hasPalette %s\n", sprite->haspalette ? "YES" : "NO");
+		if (sprite->haspalette) LOGDBG("paletteSize %u\n", sprite->palettesize);
 
-		struct sprite_header* header = malloc(sizeof(struct sprite_header));
-
-		sprite_read_bytes(spritefile, header->name, 12);
-		header->name[12] = '\0';
-
-		uint32_t width          = sprite_read_word(spritefile);
-		uint32_t height         = sprite_read_word(spritefile);
-		uint32_t firstUsedBit   = sprite_read_word(spritefile); /* old format only (spriteType = 0) */
-		uint32_t lastUsedBit    = sprite_read_word(spritefile);
-		uint32_t imageOffset    = sprite_read_word(spritefile);
-		assert(imageOffset >= 44); /* should never be smaller than the size of the header) */
-
-		uint32_t maskOffset     = sprite_read_word(spritefile);
-		uint32_t spriteModeWord = sprite_read_word(spritefile);
-
-		header->mode = sprite_get_mode(spriteModeWord);
-		assert(header->mode->colorbpp > 0);
-		assert(header->mode->xdpi > 0);
-		assert(header->mode->ydpi > 0);
-
-		header->palettesize     = imageOffset - 44;
-		header->haspalette      = (header->palettesize > 0);
-
-		uint32_t imageSize;
-		uint32_t maskSize;
-
-		if (imageOffset == maskOffset) {
-			header->hasmask = false;
-			imageSize = nextSpriteOffset - 44 - header->palettesize;
-			maskSize  = 0;
-		} else {
-			header->hasmask   = true;
-			imageSize = maskOffset - imageOffset;
-			maskSize  = nextSpriteOffset - 44 - header->palettesize - imageSize;
-		}
-		
-		LOGDBG("\nLoading sprite %u\n", i);
-		LOGDBG("nextSpriteOffset %u\n", nextSpriteOffset);
-		LOGDBG("name %s\n", header->name);
-		LOGDBG("width %u\n", width);
-		LOGDBG("height %u\n", height);
-		LOGDBG("firstUsedBit %u\n", firstUsedBit);
-		LOGDBG("lastUsedBit %u\n", lastUsedBit);
-		LOGDBG("imageOffset %u\n", imageOffset);
-		LOGDBG("maskOffset %u\n", maskOffset);
-		if (spriteModeWord > 255) {
-			LOGDBG("spriteModeWord 0x%x\n", spriteModeWord);
-		} else {
-			LOGDBG("spriteModeWord %u\n", spriteModeWord);
-		}
-		LOGDBG("\tcolorbpp %u\n", header->mode->colorbpp);
-		LOGDBG("\txdpi %u\n", header->mode->xdpi);
-		LOGDBG("\tydpi %u\n", header->mode->ydpi);
-
-		LOGDBG("hasPalette %s\n", header->haspalette ? "YES" : "NO");
-		if (header->haspalette) LOGDBG("paletteSize %u\n", header->palettesize);
-		LOGDBG("imageSize %u\n", imageSize);
-		LOGDBG("hasMask %s\n", header->hasmask ? "YES" : "NO");
-		if (header->hasmask) LOGDBG("maskbpp %u\n", header->mode->maskbpp);
-		if (header->hasmask) LOGDBG("maskSize %u\n", maskSize);
-		
-		uint32_t* palette = NULL;
-		if (header->haspalette) {
-			assert(header->palettesize % 8 == 0);
-			palette = malloc(sizeof(uint32_t) * header->palettesize);
-			uint32_t paletteEntries = header->palettesize / 8;
-
-			/* Each palette entry is two words big
-			 * The second word is a duplicate of the first
-			 * I think this is in case you ever wanted flashing colours
-			 */
-			for (uint32_t j = 0; j < paletteEntries; j++) {
-				uint32_t word1 = sprite_read_word(spritefile);
-				uint32_t word2 = sprite_read_word(spritefile);
-				assert(word1 == word2); /* TODO: if they aren't, START FLASHING */
-				
-				palette[j] = word1;
-			}
-		}
-
-		unsigned char* image = malloc(imageSize);
-		sprite_read_bytes(spritefile, image, imageSize);
-
-		unsigned char* mask = malloc(maskSize);
-		sprite_read_bytes(spritefile, mask, maskSize);
-
-		LOGDBG("calculated width in bytes %u\n", ((width + 1) * (height + 1) * 4));
-		uint32_t widthInBits = (width + 1) * 4 /* bytes per word */ * 8 /* bits per byte */;
-		uint32_t widthInPixelsWithoutCrop = widthInBits / header->mode->colorbpp;
-		uint32_t heightInPixels = height + 1;
-		LOGDBG("width in pixels (without crop) %u\n", widthInPixelsWithoutCrop);
-		LOGDBG("height in pixels %u\n", heightInPixels);
+		LOGDBG("hasMask %s\n", sprite->hasmask ? "YES" : "NO");
+		if (sprite->hasmask) LOGDBG("maskbpp %u\n", sprite->mode->maskbpp);
 	}
+
+	fclose(spritefile);
 
 	return EXIT_SUCCESS;
 }
@@ -298,8 +307,4 @@ int main(int argc, char *argv[])
 32bpp:	bbggrr00 | bbggrr00
 24bpp:	bbggrrbb | ggrr....
 16bpp:	bgr0bgr0 | bgr0bgr0
-*/
-
-/*
-
 */
