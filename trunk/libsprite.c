@@ -168,24 +168,42 @@ struct sprite_mode* sprite_get_mode(uint32_t spriteMode)
 	return mode;
 }
 
-void sprite_load_high_color(uint8_t* image, uint8_t* mask, struct sprite* sprite, struct sprite_header* header)
+void sprite_load_high_color(uint8_t* image_in, uint8_t* mask, struct sprite* sprite, struct sprite_header* header)
 {
-	image = image; mask = mask; sprite = sprite; header = header;
+	mask = mask;
+
+	sprite->image = malloc(sprite->width * sprite->height * 4); /* all image data is 32bpp going out */
+
+	uint32_t currentByteIndex = 0; /* only for standalone test -- fread() will maintain this */
+	uint32_t bpp = sprite->mode->colorbpp;
+	uint32_t bytesPerPixel = bpp / 8;
+
+	/* TODO: waste */
+	
+	for (uint32_t y = 0; y < sprite->height; y++) {
+		for (uint32_t x = 0; x < header->width_words * 32 /* 32 bits per word */; x+=bpp) {
+			uint32_t pixel = 0;
+			for (uint32_t j = 0; j < bytesPerPixel; j++) {
+				uint8_t b = image_in[currentByteIndex++];
+				pixel = pixel | (b << (j * 8));
+			}
+			printf("%4x", pixel);
+			/* TODO: put pixels in sprite->image */
+		}
+		printf("\n");
+	}
 }
 
 void sprite_load_low_color(uint8_t* image_in, uint8_t* mask, struct sprite* sprite, struct sprite_header* header)
 {
 	mask = mask; /* TODO: mask */
-	/* TODO: left/right wastage */
 
 	sprite->image = malloc(sprite->width * sprite->height * 4); /* all image data is 32bpp going out */
 
-	uint32_t currentByteIndex = 0; /* only for standalone test -- fread() will maintain this */
-
+	uint32_t current_word_index = 0;
 	uint32_t bpp = sprite->mode->colorbpp;
-
 	uint32_t bitmask = (1 << bpp) - 1; /* creates a mask of 1s that is bpp bits wide */
-	uint8_t currentbyte = image_in[currentByteIndex++];
+	uint32_t currentword = ((uint32_t*) image_in)[current_word_index++];
 	
 	for (uint32_t y = 0; y < sprite->height; y++) {
 		for (uint32_t x = 0; x < header->width_words * 32 /* 32 bits per word */; x+=bpp) {
@@ -195,16 +213,17 @@ void sprite_load_low_color(uint8_t* image_in, uint8_t* mask, struct sprite* spri
 				waste = true;
 			} /* TODO: left wastage */
 
-			uint32_t offset_into_byte = x % 8;
+			uint32_t offset_into_word = x % 32;
 
 			if (!waste) {
-				uint32_t pixel = (currentbyte & (bitmask << offset_into_byte)) >> offset_into_byte;
+				uint32_t pixel = (currentword & (bitmask << offset_into_word)) >> offset_into_word;
 				printf("%2x", pixel);
+				/* TODO: put pixels in sprite->image */
 			}
 	
-			if (offset_into_byte + bpp == 8) {
+			if (offset_into_word + bpp == 32) {
 				/* TODO: assert not exceeding image size */
-				currentbyte = image_in[currentByteIndex++];
+				currentword = ((uint32_t*)image_in)[current_word_index++];
 			}
 		}
 		printf("\n");
