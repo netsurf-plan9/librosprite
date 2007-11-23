@@ -17,6 +17,7 @@ struct sprite_area_control_block {
 
 struct sprite_mode {
 	uint32_t colorbpp;
+	uint32_t maskbpp;
 	uint32_t xdpi;
 	uint32_t ydpi;
 };
@@ -25,7 +26,6 @@ struct sprite_header {
 	unsigned char name[13]; /* last byte for 0 terminator */
 	struct sprite_mode* mode;
 	bool hasmask;
-	uint32_t maskbpp;
 	bool haspalette;
 	uint32_t palettesize;
 	uint32_t* palette;
@@ -111,11 +111,21 @@ struct sprite_mode* sprite_get_mode(uint32_t spriteMode)
 	oldmodes[45].colorbpp = 2; oldmodes[45].xdpi = 90; oldmodes[45].ydpi = 45;
 	oldmodes[46].colorbpp = 4; oldmodes[46].xdpi = 90; oldmodes[46].ydpi = 45;
 
+	/* old modes have the same mask bpp as their colour bpp -- PRM1-781 */
+	for (uint32_t i = 0; i < 256; i++) {
+		oldmodes[i].maskbpp = oldmodes[i].colorbpp;
+	}
+
 	struct sprite_mode* mode = malloc(sizeof(struct sprite_mode));
 
-	uint32_t spriteType = spriteMode >> 27; /* preserve bits 27-31 only */
+	uint32_t spriteType = (spriteMode & 0x78000000) >> 27; /* preserve bits 27-30 only */
 
 	if (spriteType != 0) {
+		bool hasEightBitAlpha = (spriteMode & 0x80000000) >> 31; /* bit 31 */
+		/* new modes have 1bpp masks (PRM5a-111)
+		 * unless bit 31 is set (http://select.riscos.com/prm/graphics/sprites/alphachannel.html)
+		 */
+		mode->maskbpp = (hasEightBitAlpha ? 8 : 1);
 		mode->xdpi = (spriteMode & 0x07ffc000) >> 14; /* preserve bits 14-26 only */
 		mode->ydpi = (spriteMode & 0x00003ffe) >> 1; /* preserve bits 1-13 only */
 		switch (spriteType) {
@@ -138,11 +148,16 @@ struct sprite_mode* sprite_get_mode(uint32_t spriteMode)
 		}
 	} else {
 		/* clone station mode and return */
+		assert(spriteMode < 256); /* don't think you can have modes over 255? */
 		memcpy(mode, &(oldmodes[spriteMode]), sizeof(struct sprite_mode));
 	}
 
 	return mode;
 }
+
+/*sprite_get_image(struct sprite_header* header)
+{
+}*/
 
 int main(int argc, char *argv[])
 {
@@ -225,7 +240,11 @@ int main(int argc, char *argv[])
 		LOGDBG("lastUsedBit %u\n", lastUsedBit);
 		LOGDBG("imageOffset %u\n", imageOffset);
 		LOGDBG("maskOffset %u\n", maskOffset);
-		LOGDBG("spriteModeWord %u\n", spriteModeWord);
+		if (spriteModeWord > 255) {
+			LOGDBG("spriteModeWord 0x%x\n", spriteModeWord);
+		} else {
+			LOGDBG("spriteModeWord %u\n", spriteModeWord);
+		}
 		LOGDBG("\tcolorbpp %u\n", header->mode->colorbpp);
 		LOGDBG("\txdpi %u\n", header->mode->xdpi);
 		LOGDBG("\tydpi %u\n", header->mode->ydpi);
@@ -234,6 +253,7 @@ int main(int argc, char *argv[])
 		if (header->haspalette) LOGDBG("paletteSize %u\n", header->palettesize);
 		LOGDBG("imageSize %u\n", imageSize);
 		LOGDBG("hasMask %s\n", header->hasmask ? "YES" : "NO");
+		if (header->hasmask) LOGDBG("maskbpp %u\n", header->mode->maskbpp);
 		if (header->hasmask) LOGDBG("maskSize %u\n", maskSize);
 		
 		uint32_t* palette = NULL;
@@ -271,3 +291,15 @@ int main(int argc, char *argv[])
 
 	return EXIT_SUCCESS;
 }
+
+/*
+	       word boundary
+	             |
+32bpp:	bbggrr00 | bbggrr00
+24bpp:	bbggrrbb | ggrr....
+16bpp:	bgr0bgr0 | bgr0bgr0
+*/
+
+/*
+
+*/
