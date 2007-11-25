@@ -1,38 +1,15 @@
-#include "assert.h"
-#include "stdio.h"
-#include "stdlib.h"
-#include "stdint.h"
-#include "stdbool.h"
-#include "string.h"
+#include <assert.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+#include <stdbool.h>
+#include <string.h>
+
+#include "libsprite.h"
 
 #define LOGDBG(...) printf(__VA_ARGS__);
 
 #define BTUINT(b) (b[0] | (b[1] << 8) | (b[2] << 16) | (b[3] << 24))
-
-struct sprite_area {
-	uint32_t sprite_count;
-	uint32_t extension_size; /* size of extension_words in bytes */
-	uint8_t* extension_words;
-};
-
-struct sprite_mode {
-	uint32_t colorbpp;
-	uint32_t maskbpp;
-	uint32_t xdpi;
-	uint32_t ydpi;
-};
-
-struct sprite {
-	unsigned char name[13]; /* last byte for 0 terminator */
-	struct sprite_mode* mode;
-	bool hasmask;
-	bool haspalette;
-	uint32_t palettesize;
-	uint32_t* palette;
-	uint32_t width; /* width and height in _pixels_ */
-	uint32_t height;
-	uint32_t* image;
-};
 
 struct sprite_header {
 	uint32_t width_words; /* width in words */
@@ -168,6 +145,41 @@ struct sprite_mode* sprite_get_mode(uint32_t spriteMode)
 	return mode;
 }
 
+uint32_t sprite_palette_lookup(struct sprite* sprite, uint32_t pixel)
+{
+	uint32_t translated_pixel;
+	assert(pixel < 256); /* because we're dealing with 8bpp or less */
+	if (sprite->has_palette) {
+		assert(pixel <= sprite->palettesize); /* TODO: what to do if your color depth is bigger than palette? */
+		translated_pixel = sprite->palette[pixel];
+	} else {
+		/* TODO: use a default palette */
+		translated_pixel = pixel;
+	}
+	return translated_pixel;
+}
+
+uint32_t sprite_upscale_color(uint32_t pixel, uint32_t bpp)
+{
+	switch (bpp) {
+	case 32:
+		return pixel;
+	case 24:
+		return pixel & (23 << 8); /* TODO: mask out alpha -- any point? */
+	case 16:
+		/* TODO */
+		return pixel;
+	case 8:
+	case 4:
+	case 2:
+	case 1:
+		assert(false); /* shouldn't need to call for <= 8bpp, since a palette lookup will return 32bpp */
+	default:
+		assert(false); /* unknown bpp */
+		break;
+	}
+}
+
 void sprite_load_high_color(uint8_t* image_in, uint8_t* mask, struct sprite* sprite, struct sprite_header* header)
 {
 	mask = mask;
@@ -175,22 +187,30 @@ void sprite_load_high_color(uint8_t* image_in, uint8_t* mask, struct sprite* spr
 	sprite->image = malloc(sprite->width * sprite->height * 4); /* all image data is 32bpp going out */
 
 	uint32_t currentByteIndex = 0; /* only for standalone test -- fread() will maintain this */
-	uint32_t bpp = sprite->mode->colorbpp;
-	uint32_t bytesPerPixel = bpp / 8;
+	const uint32_t bpp = sprite->mode->colorbpp;
+	const uint32_t bytesPerPixel = bpp / 8;
+	const uint32_t row_max_bit = header->width_words * 32 - (31 - header->last_used_bit); /* Last used bit in row */
 
-	/* TODO: waste */
+	/* Spec says that there must be no left-hand wastage */
+	assert(header->first_used_bit == 0);
 	
 	for (uint32_t y = 0; y < sprite->height; y++) {
-		for (uint32_t x = 0; x < header->width_words * 32 /* 32 bits per word */; x+=bpp) {
+		for (uint32_t x = 0; x < row_max_bit; x += bpp) {
 			uint32_t pixel = 0;
 			for (uint32_t j = 0; j < bytesPerPixel; j++) {
 				uint8_t b = image_in[currentByteIndex++];
 				pixel = pixel | (b << (j * 8));
 			}
-			printf("%4x", pixel);
+			
+			pixel = sprite_upscale_color(pixel, bpp);
+			sprite->image[y*sprite->width + x] = pixel;
 			/* TODO: put pixels in sprite->image */
 		}
-		printf("\n");
+
+		/* Ensure byte index is pointing at start of next row */
+		if (y + 1 < sprite->height) {
+			currentByteIndex = (currentByteIndex + 3) & ~3; /* Round up to next multiple of 4 */
+		}
 	}
 }
 
@@ -200,33 +220,34 @@ void sprite_load_low_color(uint8_t* image_in, uint8_t* mask, struct sprite* spri
 
 	sprite->image = malloc(sprite->width * sprite->height * 4); /* all image data is 32bpp going out */
 
-	uint32_t current_word_index = 0;
-	uint32_t bpp = sprite->mode->colorbpp;
-	uint32_t bitmask = (1 << bpp) - 1; /* creates a mask of 1s that is bpp bits wide */
-	uint32_t currentword = ((uint32_t*) image_in)[current_word_index++];
+	const uint32_t bpp = sprite->mode->colorbpp;
+	const uint32_t row_max_bit = header->width_words * 32 - (31 - header->last_used_bit); /* Last used bit in row */
+	const uint32_t bitmask = (1 << bpp) - 1; /* creates a mask of 1s that is bpp bits wide */
+
+	uint32_t current_byte_index = 0;
+	uint32_t currentword = BTUINT((image_in + current_byte_index));
+	current_byte_index += 4;
 	
 	for (uint32_t y = 0; y < sprite->height; y++) {
-		for (uint32_t x = 0; x < header->width_words * 32 /* 32 bits per word */; x+=bpp) {
-			
-			bool waste = false;
-			if (x >= header->width_words * 32 - header->last_used_bit - 1) {
-				waste = true;
-			} /* TODO: left wastage */
+		for (uint32_t x = header->first_used_bit; x < row_max_bit ; x += bpp) {
+			const uint32_t offset_into_word = x % 32;
 
-			uint32_t offset_into_word = x % 32;
+			uint32_t pixel = (currentword & (bitmask << offset_into_word)) >> offset_into_word;
+			pixel = sprite_palette_lookup(sprite, pixel); /* lookup returns 32bpp */
+			sprite->image[y*sprite->width + x] = pixel;
 
-			if (!waste) {
-				uint32_t pixel = (currentword & (bitmask << offset_into_word)) >> offset_into_word;
-				printf("%2x", pixel);
-				/* TODO: put pixels in sprite->image */
-			}
-	
-			if (offset_into_word + bpp == 32) {
-				/* TODO: assert not exceeding image size */
-				currentword = ((uint32_t*)image_in)[current_word_index++];
+			/* If we're not at the end of the row and we've processed all of this word, fetch the next one */
+			if (x + bpp < row_max_bit && offset_into_word + bpp == 32) {
+				currentword = BTUINT((image_in + current_byte_index));
+				current_byte_index += 4;
 			}
 		}
-		printf("\n");
+
+		/* Advance to first word of next row */
+		if (y + 1 < sprite->height) {
+			currentword = BTUINT((image_in + current_byte_index));
+			current_byte_index += 4;
+		}
 	}
 }
 
@@ -244,7 +265,6 @@ struct sprite* sprite_load_sprite(FILE* spritefile)
 	sprite->height          = sprite_read_word(spritefile) + 1;
 	header->first_used_bit  = sprite_read_word(spritefile); /* old format only (spriteType = 0) */
 	header->last_used_bit   = sprite_read_word(spritefile);
-	LOGDBG("first: %u last: %u\n", header->first_used_bit, header->last_used_bit);
 
 	uint32_t imageOffset    = sprite_read_word(spritefile);
 	assert(imageOffset >= 44); /* should never be smaller than the size of the header) */
@@ -261,10 +281,10 @@ struct sprite* sprite_load_sprite(FILE* spritefile)
 	
 	assert((header->last_used_bit + 1) % sprite->mode->colorbpp == 0);
 	/*assert(header->width_words % sprite->mode->colorbpp == 0);*/
-	sprite->width = (header->width_words * 32 / sprite->mode->colorbpp) - ((header->last_used_bit + 1) / sprite->mode->colorbpp);
+	sprite->width = (header->width_words * 32 - header->first_used_bit - (31 - header->last_used_bit)) / sprite->mode->colorbpp;
 
 	sprite->palettesize     = imageOffset - 44;
-	sprite->haspalette      = (sprite->palettesize > 0);
+	sprite->has_palette     = (sprite->palettesize > 0);
 
 	uint32_t image_size;
 	uint32_t maskSize;
@@ -283,10 +303,9 @@ struct sprite* sprite_load_sprite(FILE* spritefile)
 
 	if (sprite->hasmask) LOGDBG("maskSize %u\n", maskSize);
 	
-	uint32_t* palette = NULL;
-	if (sprite->haspalette) {
+	if (sprite->has_palette) {
 		assert(sprite->palettesize % 8 == 0);
-		palette = malloc(sizeof(uint32_t) * sprite->palettesize);
+		sprite->palette = malloc(sizeof(uint32_t) * sprite->palettesize);
 		uint32_t paletteEntries = sprite->palettesize / 8;
 
 		/* Each palette entry is two words big
@@ -299,7 +318,7 @@ struct sprite* sprite_load_sprite(FILE* spritefile)
 			uint32_t word2 = sprite_read_word(spritefile);
 			assert(word1 == word2); /* TODO: if they aren't, START FLASHING */
 			
-			palette[j] = word1;
+			sprite->palette[j] = word1;
 		}
 	}
 
@@ -325,60 +344,31 @@ struct sprite* sprite_load_sprite(FILE* spritefile)
 	return sprite;
 }
 
-int main(int argc, char *argv[])
+struct sprite_area* sprite_load_file(FILE* f)
 {
-	if (argc < 2) {
-		printf("Usage: libsprite spritefile\n");
-		exit(EXIT_FAILURE);
-	}
-
-	char* filename = argv[1];
-
-	FILE* spritefile = fopen(filename, "rb");
-	if (spritefile == NULL) {
-		printf("Can't load spritefile %s\n", filename);
-		exit(EXIT_FAILURE);
-	}
-
-	LOGDBG("Loading %s\n", filename);
-	sprite_init();
-
 	struct sprite_area* sprite_area = malloc(sizeof(struct sprite_area));
 
-	sprite_area->sprite_count = sprite_read_word(spritefile);
+	sprite_area->sprite_count = sprite_read_word(f);
 
-	uint32_t firstSpriteOffset = sprite_read_word(spritefile);
-	/*uint32_t firstFreeWordOffset = */sprite_read_word(spritefile); /* TODO: use this for some sanity checking? */
+	uint32_t firstSpriteOffset = sprite_read_word(f);
+	/*uint32_t firstFreeWordOffset = */sprite_read_word(f); /* TODO: use this for some sanity checking? */
 	sprite_area->extension_size = 16 - firstSpriteOffset;
-
-	LOGDBG("sprite_count %u\n", sprite_area->sprite_count);
-	LOGDBG("extension_size %u\n", sprite_area->extension_size);
 
 	sprite_area->extension_words = NULL;
 	if (sprite_area->extension_size > 0) {
 		sprite_area->extension_words = malloc(sprite_area->extension_size); /* where to free() this? */
-		sprite_read_bytes(spritefile, sprite_area->extension_words, (size_t) (sprite_area->extension_size));
+		sprite_read_bytes(f, sprite_area->extension_words, (size_t) (sprite_area->extension_size));
 	}
 
+	sprite_area->sprites = malloc(sizeof(struct sprite*) * sprite_area->sprite_count); /* allocate array of pointers */
 	for (uint32_t i = 0; i < sprite_area->sprite_count; i++) {
-		struct sprite* sprite = sprite_load_sprite(spritefile);
-		LOGDBG("\nname %s\n", sprite->name);
-		LOGDBG("colorbpp %u\n", sprite->mode->colorbpp);
-		LOGDBG("xdpi %u\n", sprite->mode->xdpi);
-		LOGDBG("ydpi %u\n", sprite->mode->ydpi);
-		LOGDBG("width %u px\n", sprite->width);
-		LOGDBG("height %u px\n", sprite->height);
-	
-		LOGDBG("hasPalette %s\n", sprite->haspalette ? "YES" : "NO");
-		if (sprite->haspalette) LOGDBG("paletteSize %u\n", sprite->palettesize);
-
-		LOGDBG("hasMask %s\n", sprite->hasmask ? "YES" : "NO");
-		if (sprite->hasmask) LOGDBG("maskbpp %u\n", sprite->mode->maskbpp);
+		struct sprite* sprite = sprite_load_sprite(f);
+		sprite_area->sprites[i] = sprite;
+		
+		
 	}
 
-	fclose(spritefile);
-
-	return EXIT_SUCCESS;
+	return sprite_area;
 }
 
 /*
