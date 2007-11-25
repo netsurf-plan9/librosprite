@@ -165,7 +165,7 @@ uint32_t sprite_upscale_color(uint32_t pixel, uint32_t bpp)
 	case 32:
 		return pixel;
 	case 24:
-		return pixel & (23 << 8); /* TODO: mask out alpha -- any point? */
+		return pixel & 0x00001700; /* TODO: mask out alpha -- any point? */
 	case 16:
 		/* TODO */
 		return pixel;
@@ -195,16 +195,17 @@ void sprite_load_high_color(uint8_t* image_in, uint8_t* mask, struct sprite* spr
 	assert(header->first_used_bit == 0);
 	
 	for (uint32_t y = 0; y < sprite->height; y++) {
+		uint32_t x_pixels = 0;
 		for (uint32_t x = 0; x < row_max_bit; x += bpp) {
 			uint32_t pixel = 0;
 			for (uint32_t j = 0; j < bytesPerPixel; j++) {
 				uint8_t b = image_in[currentByteIndex++];
-				pixel = pixel | (b << (j * 8));
+				pixel = pixel | (b << ((bytesPerPixel - j - 1) * 8));
 			}
 			
 			pixel = sprite_upscale_color(pixel, bpp);
-			sprite->image[y*sprite->width + x] = pixel;
-			/* TODO: put pixels in sprite->image */
+			sprite->image[y*sprite->width + x_pixels] = pixel;
+			x_pixels++;
 		}
 
 		/* Ensure byte index is pointing at start of next row */
@@ -277,7 +278,7 @@ struct sprite* sprite_load_sprite(FILE* spritefile)
 	assert(sprite->mode->xdpi > 0);
 	assert(sprite->mode->ydpi > 0);
 
-	/* TODO l/r wastage */
+	/* TODO left-hand wastage */
 	
 	assert((header->last_used_bit + 1) % sprite->mode->colorbpp == 0);
 	/*assert(header->width_words % sprite->mode->colorbpp == 0);*/
