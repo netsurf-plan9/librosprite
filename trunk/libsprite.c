@@ -443,7 +443,7 @@ struct sprite* sprite_load_sprite(FILE* spritefile)
 			uint32_t word2 = sprite_read_word(spritefile);
 			assert(word1 == word2); /* TODO: if they aren't, START FLASHING */
 			
-			/* swap rr and bb parts (seems to give the right result, but where is it documented? */
+			/* swap rr and bb parts (seems to give the right result, but where is it documented? PRM1-731 */
 			uint32_t entry = ((word1 & 0xff000000) >> 16) | (word1 & 0x00ff0000) | ((word1 & 0x0000ff00) << 16);
 			sprite->palette[j] = entry;
 		}
