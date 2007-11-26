@@ -21,6 +21,13 @@ struct sprite_header {
 
 static struct sprite_mode oldmodes[256];
 
+static uint8_t sprite_16bpp_translate[] = {
+	0x00, 0x08, 0x10, 0x18, 0x20, 0x29, 0x31, 0x39,
+	0x41, 0x4a, 0x52, 0x5a, 0x62, 0x6a, 0x73, 0x7b,
+	0x83, 0x8b, 0x94, 0x9c, 0xa4, 0xac, 0xb4, 0xbd,
+	0xc5, 0xcd, 0xd5, 0xde, 0xe6, 0xee, 0xf6, 0xff
+};
+
 void sprite_init()
 {
 	for (uint32_t i = 0; i < 256; i++) {
@@ -163,12 +170,28 @@ uint32_t sprite_upscale_color(uint32_t pixel, uint32_t bpp)
 {
 	switch (bpp) {
 	case 32:
-		return pixel;
+		/* reverse byte order */
+		return ((pixel & (0x000000ff)) << 24) | ((pixel & 0x0000ff00) << 8) | ((pixel & 0x00ff0000) >> 8) | ((pixel & 0xff000000) >> 24);
 	case 24:
 		return pixel & 0x00001700; /* TODO: mask out alpha -- any point? */
 	case 16:
-		/* TODO */
+		/* assume incoming format of b_00000000000000000bbbbbgggggrrrrr */
+		{
+			uint8_t red   = pixel & 31;
+			uint8_t green = (pixel & (31 << 5)) >> 5;
+			uint8_t blue  = (pixel & (31 << 10)) >> 10;
+
+			/* sanity check */
+			assert(red < 32);
+			assert(green < 32);
+			assert(blue < 32);
+
+			pixel =   (sprite_16bpp_translate[red] << 24)
+					| (sprite_16bpp_translate[green] << 16)
+					| (sprite_16bpp_translate[blue] << 8);
+			printf("%x %x %x ", red, green, blue);
 		return pixel;
+		}
 	case 8:
 	case 4:
 	case 2:
@@ -200,7 +223,7 @@ void sprite_load_high_color(uint8_t* image_in, uint8_t* mask, struct sprite* spr
 			uint32_t pixel = 0;
 			for (uint32_t j = 0; j < bytesPerPixel; j++) {
 				uint8_t b = image_in[currentByteIndex++];
-				pixel = pixel | (b << ((bytesPerPixel - j - 1) * 8));
+				pixel = pixel | (b << (j * 8));
 			}
 			
 			pixel = sprite_upscale_color(pixel, bpp);
@@ -230,12 +253,14 @@ void sprite_load_low_color(uint8_t* image_in, uint8_t* mask, struct sprite* spri
 	current_byte_index += 4;
 	
 	for (uint32_t y = 0; y < sprite->height; y++) {
+		uint32_t x_pixels = 0;
 		for (uint32_t x = header->first_used_bit; x < row_max_bit ; x += bpp) {
 			const uint32_t offset_into_word = x % 32;
 
 			uint32_t pixel = (currentword & (bitmask << offset_into_word)) >> offset_into_word;
 			pixel = sprite_palette_lookup(sprite, pixel); /* lookup returns 32bpp */
-			sprite->image[y*sprite->width + x] = pixel;
+			sprite->image[y*sprite->width + x_pixels] = pixel;
+			x_pixels++;
 
 			/* If we're not at the end of the row and we've processed all of this word, fetch the next one */
 			if (x + bpp < row_max_bit && offset_into_word + bpp == 32) {
@@ -319,7 +344,9 @@ struct sprite* sprite_load_sprite(FILE* spritefile)
 			uint32_t word2 = sprite_read_word(spritefile);
 			assert(word1 == word2); /* TODO: if they aren't, START FLASHING */
 			
-			sprite->palette[j] = word1;
+			/* swap rr and bb parts (seems to give the right result, but where is it documented? */
+			uint32_t entry = ((word1 & 0xff000000) >> 16) | (word1 & 0x00ff0000) | ((word1 & 0x0000ff00) << 16);
+			sprite->palette[j] = entry;
 		}
 	}
 

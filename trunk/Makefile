@@ -16,3 +16,6 @@ libsprite.a: libsprite.o
 
 %.o: %.c
 	${CC} -c -g ${CFLAGS} -o $@ $<
+
+clean:
+	rm -f $(wildcard *.o) $(wildcard *.a) example

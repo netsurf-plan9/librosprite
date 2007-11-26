@@ -12,6 +12,15 @@ void sdl_draw_pixel(SDL_Surface* surface, uint32_t x, uint32_t y, uint32_t color
 	*pixel = mapped_color;
 }
 
+void sdl_blank(SDL_Surface* surface)
+{
+	for (uint32_t y = 0; y < (uint32_t) surface->h; y++) {
+		for (uint32_t x = 0; x < (uint32_t) surface->w; x++) {
+			sdl_draw_pixel(surface, x, y, (uint32_t) 0);
+		}
+	}
+}
+
 int main(int argc, char *argv[])
 {
 	if (argc < 2) {
@@ -19,7 +28,7 @@ int main(int argc, char *argv[])
 		exit(EXIT_FAILURE);
 	}
 
-	if ( SDL_Init(SDL_INIT_AUDIO|SDL_INIT_VIDEO) < 0 ) {
+	if ( SDL_Init(SDL_INIT_VIDEO) < 0 ) {
 		fprintf(stderr, "Unable to init SDL: %s\n", SDL_GetError());
 		exit(1);
 	}
@@ -58,6 +67,8 @@ int main(int argc, char *argv[])
 
 		printf("hasMask %s\n", sprite->hasmask ? "YES" : "NO");
 		if (sprite->hasmask) printf("maskbpp %u\n", sprite->mode->maskbpp);
+
+		sdl_blank(screen);
 
 		for (uint32_t y = 0; y < sprite->height; y++) {
 			for (uint32_t x = 0; x < sprite->width; x++) {
