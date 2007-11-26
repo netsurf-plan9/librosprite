@@ -4,6 +4,9 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+#define SPRITE_RGB 0
+#define SPRITE_CMYK 1
+
 struct sprite_area {
 	uint32_t extension_size; /* size of extension_words in bytes */
 	uint8_t* extension_words;
@@ -16,6 +19,7 @@ struct sprite_mode {
 	uint32_t maskbpp;
 	uint32_t xdpi;
 	uint32_t ydpi;
+	uint32_t color_model;
 };
 
 struct sprite_palette {

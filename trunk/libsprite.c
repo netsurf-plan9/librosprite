@@ -208,6 +208,8 @@ struct sprite_mode* sprite_get_mode(uint32_t spriteMode)
 		mode->maskbpp = (hasEightBitAlpha ? 8 : 1);
 		mode->xdpi = (spriteMode & 0x07ffc000) >> 14; /* preserve bits 14-26 only */
 		mode->ydpi = (spriteMode & 0x00003ffe) >> 1; /* preserve bits 1-13 only */
+
+		mode->color_model = SPRITE_RGB;
 		switch (spriteType) {
 		case 1:
 			mode->colorbpp = 1; break;
@@ -222,7 +224,9 @@ struct sprite_mode* sprite_get_mode(uint32_t spriteMode)
 		case 6:
 			mode->colorbpp = 32; break;
 		case 7:
-			mode->colorbpp = 32; break; /* CMYK */
+			mode->colorbpp = 32;
+			mode->color_model = SPRITE_CMYK;
+			break;
 		case 8:
 			mode->colorbpp = 24; break;
 		}
@@ -267,10 +271,36 @@ uint32_t sprite_palette_lookup(struct sprite* sprite, uint32_t pixel)
 	return translated_pixel;
 }
 
-uint32_t sprite_upscale_color(uint32_t pixel, uint32_t bpp)
+uint32_t sprite_cmyk_to_rgb(uint32_t cmyk)
 {
-	switch (bpp) {
+        const uint8_t c = cmyk & 0xff;
+        const uint8_t m = (cmyk & 0xff00) >> 8;
+        const uint8_t y = (cmyk & 0xff0000) >> 16;
+        const uint8_t k = cmyk >> 24;
+ 
+        /* Convert to CMY colourspace */
+        const uint8_t C = c + k;
+        const uint8_t M = m + k;
+        const uint8_t Y = y + k;
+ 
+        /* And to RGB */
+        const uint8_t r = 255 - C;
+        const uint8_t g = 255 - M;
+        const uint8_t b = 255 - Y;
+ 
+        return r << 24 | g << 16 | b << 8;
+}
+
+uint32_t sprite_upscale_color(uint32_t pixel, struct sprite_mode* mode)
+{
+	switch (mode->colorbpp) {
 	case 32:
+		if (mode->color_model == SPRITE_RGB) {
+			/* swap from 0xAABBGGRR to 0xRRGGBBAA */
+			return BSWAP(pixel);
+		} else {
+			return sprite_cmyk_to_rgb(pixel);
+		}
 	case 24:
 		/* reverse byte order */
 		return BSWAP(pixel);
@@ -298,7 +328,6 @@ uint32_t sprite_upscale_color(uint32_t pixel, uint32_t bpp)
 		assert(false); /* shouldn't need to call for <= 8bpp, since a palette lookup will return 32bpp */
 	default:
 		assert(false); /* unknown bpp */
-		break;
 	}
 }
 
@@ -325,7 +354,7 @@ void sprite_load_high_color(uint8_t* image_in, uint8_t* mask, struct sprite* spr
 				pixel = pixel | (b << (j * 8));
 			}
 			
-			pixel = sprite_upscale_color(pixel, bpp);
+			pixel = sprite_upscale_color(pixel, sprite->mode);
 			sprite->image[y*sprite->width + x_pixels] = pixel;
 			x_pixels++;
 		}
