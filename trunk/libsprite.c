@@ -10,6 +10,7 @@
 #define LOGDBG(...) printf(__VA_ARGS__);
 
 #define BTUINT(b) (b[0] | (b[1] << 8) | (b[2] << 16) | (b[3] << 24))
+#define BSWAP(word) (((word & (0x000000ff)) << 24) | ((word & 0x0000ff00) << 8) | ((word & 0x00ff0000) >> 8) | ((word & 0xff000000) >> 24))
 
 struct sprite_header {
 	uint32_t width_words; /* width in words */
@@ -27,6 +28,15 @@ static uint8_t sprite_16bpp_translate[] = {
 	0x83, 0x8b, 0x94, 0x9c, 0xa4, 0xac, 0xb4, 0xbd,
 	0xc5, 0xcd, 0xd5, 0xde, 0xe6, 0xee, 0xf6, 0xff
 };
+
+/* palettes generated with palette2c.c which in turn requires sprite_load_palette(FILE* f) defined in this file */
+static uint32_t sprite_1bpp_palette[] = { 0xffffff00, 0x0 };
+
+static uint32_t sprite_2bpp_palette[] = { 0xffffff00, 0xbbbbbb00, 0x77777700, 0x0 };
+
+static uint32_t sprite_4bpp_palette[] = { 0xffffff00, 0xdddddd00, 0xbbbbbb00, 0x99999900, 0x77777700, 0x55555500, 0x33333300, 0x0, 0x449900, 0xeeee0000, 0xcc0000, 0xdd000000, 0xeeeebb00, 0x55880000, 0xffbb0000, 0xbbff00 };
+
+static uint32_t sprite_8bpp_palette[] = { 0x0, 0x11111100, 0x22222200, 0x33333300, 0x44000000, 0x55111100, 0x66222200, 0x77333300, 0x4400, 0x11115500, 0x22226600, 0x33337700, 0x44004400, 0x55115500, 0x66226600, 0x77337700, 0x88000000, 0x99111100, 0xaa222200, 0xbb333300, 0xcc000000, 0xdd111100, 0xee222200, 0xff333300, 0x88004400, 0x99115500, 0xaa226600, 0xbb337700, 0xcc004400, 0xdd115500, 0xee226600, 0xff337700, 0x440000, 0x11551100, 0x22662200, 0x33773300, 0x44440000, 0x55551100, 0x66662200, 0x77773300, 0x444400, 0x11555500, 0x22666600, 0x33777700, 0x44444400, 0x55555500, 0x66666600, 0x77777700, 0x88440000, 0x99551100, 0xaa662200, 0xbb773300, 0xcc440000, 0xdd551100, 0xee662200, 0xff773300, 0x88444400, 0x99555500, 0xaa666600, 0xbb777700, 0xcc444400, 0xdd555500, 0xee666600, 0xff777700, 0x880000, 0x11991100, 0x22aa2200, 0x33bb3300, 0x44880000, 0x55991100, 0x66aa2200, 0x77bb3300, 0x884400, 0x11995500, 0x22aa6600, 0x33bb7700, 0x44884400, 0x55995500, 0x66aa6600, 0x77bb7700, 0x88880000, 0x99991100, 0xaaaa2200, 0xbbbb3300, 0xcc880000, 0xdd991100, 0xeeaa2200, 0xffbb3300, 0x88884400, 0x99995500, 0xaaaa6600, 0xbbbb7700, 0xcc884400, 0xdd995500, 0xeeaa6600, 0xffbb7700, 0xcc0000, 0x11dd1100, 0x22ee2200, 0x33ff3300, 0x44cc0000, 0x55dd1100, 0x66ee2200, 0x77ff3300, 0xcc4400, 0x11dd5500, 0x22ee6600, 0x33ff7700, 0x44cc4400, 0x55dd5500, 0x66ee6600, 0x77ff7700, 0x88cc0000, 0x99dd1100, 0xaaee2200, 0xbbff3300, 0xcccc0000, 0xdddd1100, 0xeeee2200, 0xffff3300, 0x88cc4400, 0x99dd5500, 0xaaee6600, 0xbbff7700, 0xcccc4400, 0xdddd5500, 0xeeee6600, 0xffff7700, 0x8800, 0x11119900, 0x2222aa00, 0x3333bb00, 0x44008800, 0x55119900, 0x6622aa00, 0x7733bb00, 0xcc00, 0x1111dd00, 0x2222ee00, 0x3333ff00, 0x4400cc00, 0x5511dd00, 0x6622ee00, 0x7733ff00, 0x88008800, 0x99119900, 0xaa22aa00, 0xbb33bb00, 0xcc008800, 0xdd119900, 0xee22aa00, 0xff33bb00, 0x8800cc00, 0x9911dd00, 0xaa22ee00, 0xbb33ff00, 0xcc00cc00, 0xdd11dd00, 0xee22ee00, 0xff33ff00, 0x448800, 0x11559900, 0x2266aa00, 0x3377bb00, 0x44448800, 0x55559900, 0x6666aa00, 0x7777bb00, 0x44cc00, 0x1155dd00, 0x2266ee00, 0x3377ff00, 0x4444cc00, 0x5555dd00, 0x6666ee00, 0x7777ff00, 0x88448800, 0x99559900, 0xaa66aa00, 0xbb77bb00, 0xcc448800, 0xdd559900, 0xee66aa00, 0xff77bb00, 0x8844cc00, 0x9955dd00, 0xaa66ee00, 0xbb77ff00, 0xcc44cc00, 0xdd55dd00, 0xee66ee00, 0xff77ff00, 0x888800, 0x11999900, 0x22aaaa00, 0x33bbbb00, 0x44888800, 0x55999900, 0x66aaaa00, 0x77bbbb00, 0x88cc00, 0x1199dd00, 0x22aaee00, 0x33bbff00, 0x4488cc00, 0x5599dd00, 0x66aaee00, 0x77bbff00, 0x88888800, 0x99999900, 0xaaaaaa00, 0xbbbbbb00, 0xcc888800, 0xdd999900, 0xeeaaaa00, 0xffbbbb00, 0x8888cc00, 0x9999dd00, 0xaaaaee00, 0xbbbbff00, 0xcc88cc00, 0xdd99dd00, 0xeeaaee00, 0xffbbff00, 0xcc8800, 0x11dd9900, 0x22eeaa00, 0x33ffbb00, 0x44cc8800, 0x55dd9900, 0x66eeaa00, 0x77ffbb00, 0xcccc00, 0x11dddd00, 0x22eeee00, 0x33ffff00, 0x44cccc00, 0x55dddd00, 0x66eeee00, 0x77ffff00, 0x88cc8800, 0x99dd9900, 0xaaeeaa00, 0xbbffbb00, 0xcccc8800, 0xdddd9900, 0xeeeeaa00, 0xffffbb00, 0x88cccc00, 0x99dddd00, 0xaaeeee00, 0xbbffff00, 0xcccccc00, 0xdddddd00, 0xeeeeee00, 0xffffff00 };
 
 void sprite_init()
 {
@@ -155,13 +165,31 @@ struct sprite_mode* sprite_get_mode(uint32_t spriteMode)
 uint32_t sprite_palette_lookup(struct sprite* sprite, uint32_t pixel)
 {
 	uint32_t translated_pixel;
-	assert(pixel < 256); /* because we're dealing with 8bpp or less */
+	 /* because we're dealing with 8bpp or less */
 	if (sprite->has_palette) {
 		assert(pixel <= sprite->palettesize); /* TODO: what to do if your color depth is bigger than palette? */
 		translated_pixel = sprite->palette[pixel];
 	} else {
-		/* TODO: use a default palette */
-		translated_pixel = pixel;
+		switch (sprite->mode->colorbpp) {
+		case 8:
+			assert(pixel < 256);
+			translated_pixel = sprite_8bpp_palette[pixel];
+			break;
+		case 4:
+			assert(pixel < 16);
+			translated_pixel = sprite_4bpp_palette[pixel];
+			break;
+		case 2:
+			assert(pixel < 4);
+			translated_pixel = sprite_2bpp_palette[pixel];
+			break;
+		case 1:
+			assert(pixel < 2);
+			translated_pixel = sprite_1bpp_palette[pixel];
+			break;
+		default:
+			assert(false);
+		}
 	}
 	return translated_pixel;
 }
@@ -170,12 +198,11 @@ uint32_t sprite_upscale_color(uint32_t pixel, uint32_t bpp)
 {
 	switch (bpp) {
 	case 32:
-		/* reverse byte order */
-		return ((pixel & (0x000000ff)) << 24) | ((pixel & 0x0000ff00) << 8) | ((pixel & 0x00ff0000) >> 8) | ((pixel & 0xff000000) >> 24);
 	case 24:
-		return pixel & 0x00001700; /* TODO: mask out alpha -- any point? */
+		/* reverse byte order */
+		return BSWAP(pixel);
 	case 16:
-		/* assume incoming format of b_00000000000000000bbbbbgggggrrrrr */
+		/* incoming format is b_00000000000000000bbbbbgggggrrrrr */
 		{
 			uint8_t red   = pixel & 31;
 			uint8_t green = (pixel & (31 << 5)) >> 5;
@@ -189,7 +216,6 @@ uint32_t sprite_upscale_color(uint32_t pixel, uint32_t bpp)
 			pixel =   (sprite_16bpp_translate[red] << 24)
 					| (sprite_16bpp_translate[green] << 16)
 					| (sprite_16bpp_translate[blue] << 8);
-			printf("%x %x %x ", red, green, blue);
 		return pixel;
 		}
 	case 8:
@@ -392,17 +418,45 @@ struct sprite_area* sprite_load_file(FILE* f)
 	for (uint32_t i = 0; i < sprite_area->sprite_count; i++) {
 		struct sprite* sprite = sprite_load_sprite(f);
 		sprite_area->sprites[i] = sprite;
-		
-		
 	}
 
 	return sprite_area;
 }
 
-/*
-	       word boundary
-	             |
-32bpp:	bbggrr00 | bbggrr00
-24bpp:	bbggrrbb | ggrr....
-16bpp:	bgr0bgr0 | bgr0bgr0
-*/
+struct sprite_palette* sprite_load_palette(FILE* f)
+{
+	/* Palette file is in groups of 6 bytes, each is a VDU 19 (set palette)
+	 * http://www.drobe.co.uk/show_manual.php?manual=/sh-cgi?manual=Vdu%26page=19 */
+
+	/* TODO: currently assume palette has linear entries (2nd byte in is 00, 01, 02 etc) */
+	struct sprite_palette* palette = malloc(sizeof(struct sprite_palette));
+
+	palette->palette = malloc(sizeof(uint32_t) * 256); /* allocate 256 whether we need them all or not */
+
+	uint32_t c = 0;
+	uint8_t b[6];
+
+	size_t bytesRead = fread(&b, 1, 6, f);
+	assert(bytesRead % 6 == 0);
+	while (bytesRead == 6) {
+		assert(b[0] == 19); /* VDU 19 */
+
+		/* only process logical colours */
+		if (b[2] == 16) {
+			/*assert(c == b[1]);*/
+	
+			uint32_t entry = (b[3] << 24) | (b[4] << 16) | (b[5] << 8);
+			palette->palette[c] = entry;
+	
+			c++;
+			assert(c <= 256);
+		}
+
+		bytesRead = fread(&b, 1, 6, f);
+		assert(bytesRead % 6 == 0);
+	}
+
+	palette->size = c;
+
+	return palette;
+}

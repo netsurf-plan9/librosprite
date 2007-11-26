@@ -54,7 +54,6 @@ int main(int argc, char *argv[])
 
 	for (uint32_t i = 0; i < sprite_area->sprite_count; i++) {
 		struct sprite* sprite = sprite_area->sprites[i];
-		printf("%x\n", sprite->image[0]);
 		printf("\nname %s\n", sprite->name);
 		printf("colorbpp %u\n", sprite->mode->colorbpp);
 		printf("xdpi %u\n", sprite->mode->xdpi);

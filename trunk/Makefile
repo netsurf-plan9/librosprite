@@ -11,6 +11,9 @@ LDFLAGS = -L./
 example: libsprite.a example.o
 	${LD} -g -o $@ example.o ${LDFLAGS} -lsprite -lSDL
 
+palette2c: libsprite.a palette2c.o
+	${LD} -g -o $@ palette2c.o ${LDFLAGS} -lsprite
+
 libsprite.a: libsprite.o
 	${AR} ${ARFLAGS} libsprite.a libsprite.o
 
@@ -18,4 +21,4 @@ libsprite.a: libsprite.o
 	${CC} -c -g ${CFLAGS} -o $@ $<
 
 clean:
-	rm -f $(wildcard *.o) $(wildcard *.a) example
+	rm -f $(wildcard *.o) $(wildcard *.a) example palette

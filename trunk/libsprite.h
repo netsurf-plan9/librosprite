@@ -18,6 +18,11 @@ struct sprite_mode {
 	uint32_t ydpi;
 };
 
+struct sprite_palette {
+	uint32_t size; /* in number of entries (each entry is a word) */
+	uint32_t* palette;
+};
+
 struct sprite {
 	unsigned char name[13]; /* last byte for 0 terminator */
 	struct sprite_mode* mode;
@@ -32,5 +37,6 @@ struct sprite {
 
 void sprite_init();
 struct sprite_area* sprite_load_file(FILE* f);
+struct sprite_palette* sprite_load_palette(FILE* f);
 
 #endif
