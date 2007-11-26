@@ -18,6 +18,12 @@ struct sprite_header {
 	uint32_t first_used_bit; /* old format only (spriteType = 0) */
 	uint32_t last_used_bit;
 	uint32_t image_size; /* bytes */
+	uint32_t mask_size;
+};
+
+struct sprite_mask_state {
+	uint32_t x;
+	uint32_t y;
 };
 
 static struct sprite_mode oldmodes[256];
@@ -331,6 +337,16 @@ uint32_t sprite_upscale_color(uint32_t pixel, struct sprite_mode* mode)
 	}
 }
 
+/* Get the next mask byte.
+ * Mask of 0xff denotes 100% opaque, 0x00 denotes 100% transparent
+ */
+uint8_t sprite_get_mask(struct sprite* sprite, struct sprite_header* header, struct sprite_mask_state* mask_state)
+{
+	/* a 1bpp mask (for new mode sprites), each row is word aligned (therefore potential righthand wastage */
+	sprite = sprite; header = header; mask_state = mask_state;
+	return 0xff;
+}
+
 void sprite_load_high_color(uint8_t* image_in, uint8_t* mask, struct sprite* sprite, struct sprite_header* header)
 {
 	mask = mask;
@@ -440,22 +456,20 @@ struct sprite* sprite_load_sprite(FILE* spritefile)
 	sprite->palettesize     = imageOffset - 44;
 	sprite->has_palette     = (sprite->palettesize > 0);
 
-	uint32_t image_size;
-	uint32_t maskSize;
 
+	/* sprite has no mask if imageOffset == maskOffset */
 	if (imageOffset == maskOffset) {
-		sprite->hasmask = false;
-		image_size = nextSpriteOffset - 44 - sprite->palettesize;
-		maskSize  = 0;
+		sprite->has_mask   = false;
+		header->image_size = nextSpriteOffset - 44 - sprite->palettesize;
+		header->mask_size  = 0;
 	} else {
-		sprite->hasmask   = true;
-		image_size = maskOffset - imageOffset;
-		maskSize  = nextSpriteOffset - 44 - sprite->palettesize - image_size;
+		sprite->has_mask   = true;
+		header->image_size = maskOffset - imageOffset;
+		header->mask_size  = nextSpriteOffset - 44 - sprite->palettesize - header->image_size;
 	}
 
-	header->image_size = image_size;
-
-	if (sprite->hasmask) LOGDBG("maskSize %u\n", maskSize);
+	if (sprite->has_mask) LOGDBG("mask_size (bits) %u\n", header->mask_size * 8);
+	if (sprite->has_mask) LOGDBG("	w*h %u\n", sprite->width * sprite->height);
 	
 	if (sprite->has_palette) {
 		assert(sprite->palettesize % 8 == 0);
@@ -478,15 +492,18 @@ struct sprite* sprite_load_sprite(FILE* spritefile)
 		}
 	}
 
-	uint8_t* image = malloc(image_size);
-	sprite_read_bytes(spritefile, image, image_size);
+	uint8_t* image = malloc(header->image_size);
+	sprite_read_bytes(spritefile, image, header->image_size);
 
-	uint8_t* mask = malloc(maskSize);
-	sprite_read_bytes(spritefile, mask, maskSize);
+	uint8_t* mask = NULL;
+	if (sprite->has_mask) {
+		mask = malloc(header->mask_size);
+		sprite_read_bytes(spritefile, mask, header->mask_size);
+	}
 
-	/* sanity check imageSize */
+	/* sanity check image_size */
 	assert((header->width_words) * 4 * (sprite->height) == header->image_size);
-	/* TODO: sanity check maskSize */
+	/* TODO: sanity check mask_size */
 	if (sprite->mode->colorbpp > 8) {
 		sprite_load_high_color(image, mask, sprite, header);
 	} else {

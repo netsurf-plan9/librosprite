@@ -30,7 +30,7 @@ struct sprite_palette {
 struct sprite {
 	unsigned char name[13]; /* last byte for 0 terminator */
 	struct sprite_mode* mode;
-	bool hasmask;
+	bool has_mask;
 	bool has_palette;
 	uint32_t palettesize; /* in number of entries (each entry is a word) */
 	uint32_t* palette;

@@ -7,8 +7,14 @@
 /* color is 0xrrggbbaa */
 void sdl_draw_pixel(SDL_Surface* surface, uint32_t x, uint32_t y, uint32_t color)
 {
-	uint32_t mapped_color = SDL_MapRGB(surface->format, (color & 0xff000000) >> 24, (color & 0x00ff0000) >> 16, (color & 0x0000ff00) >> 8);
 	uint32_t* pixel = ((uint32_t*) (surface->pixels)) + (y * surface->pitch/4) + x;
+	/* pretty sure SDL can do this, but can't figure out how */
+	uint32_t alpha = 0xff;/*color & 0x000000ff;*/
+	uint32_t r = ((color & 0xff000000) >> 24) * (alpha / 256.0);
+	uint32_t g = ((color & 0x00ff0000) >> 16) * (alpha / 256.0);
+	uint32_t b = ((color & 0x0000ff00) >> 8) * (alpha / 256.0);
+	uint32_t mapped_color = SDL_MapRGBA(surface->format, r, g, b, alpha);
+	
 	*pixel = mapped_color;
 }
 
@@ -50,7 +56,8 @@ int main(int argc, char *argv[])
 	printf("extension_size %u\n", sprite_area->extension_size);
 
 	SDL_Surface *screen;
-	screen = SDL_SetVideoMode(800, 600, 32, SDL_SWSURFACE);
+	screen = SDL_SetVideoMode(800, 600, 32, SDL_ANYFORMAT);
+	SDL_SetAlpha(screen, SDL_SRCALPHA, 0);
 
 	for (uint32_t i = 0; i < sprite_area->sprite_count; i++) {
 		struct sprite* sprite = sprite_area->sprites[i];
@@ -65,8 +72,8 @@ int main(int argc, char *argv[])
 		printf("hasPalette %s\n", sprite->has_palette ? "YES" : "NO");
 		if (sprite->has_palette) printf("paletteSize %u\n", sprite->palettesize);
 
-		printf("hasMask %s\n", sprite->hasmask ? "YES" : "NO");
-		if (sprite->hasmask) printf("maskbpp %u\n", sprite->mode->maskbpp);
+		printf("hasMask %s\n", sprite->has_mask ? "YES" : "NO");
+		if (sprite->has_mask) printf("maskbpp %u\n", sprite->mode->maskbpp);
 
 		sdl_blank(screen);
 
@@ -76,7 +83,7 @@ int main(int argc, char *argv[])
 			}
 		}
 
-		SDL_UpdateRect(screen, 0, 0, 799, 599);
+		SDL_UpdateRect(screen, 0, 0, 0, 0);
 		fgetc(stdin);
 	}
 
