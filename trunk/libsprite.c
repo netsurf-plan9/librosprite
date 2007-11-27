@@ -24,11 +24,12 @@ struct sprite_header {
 struct sprite_mask_state {
 	uint32_t x;
 	uint32_t y;
-	uint32_t max_x;
-	uint32_t max_y;
-	uint32_t offset_into_word;
+	uint32_t first_used_bit;
+	uint32_t row_max_bit;
+	uint32_t height;
 	uint32_t current_byte_index;
 	uint32_t current_word;
+	uint32_t bpp;
 };
 
 static struct sprite_mode oldmodes[256];
@@ -152,7 +153,7 @@ void sprite_init(void)
 	oldmodes[19].colorbpp = 2; oldmodes[19].xdpi = 90; oldmodes[19].ydpi = 90;
 	oldmodes[20].colorbpp = 4; oldmodes[20].xdpi = 90; oldmodes[20].ydpi = 90;
 	oldmodes[21].colorbpp = 8; oldmodes[21].xdpi = 90; oldmodes[21].ydpi = 90;
-	oldmodes[22].colorbpp = 4; oldmodes[22].xdpi = 90; oldmodes[22].ydpi = 45;
+	oldmodes[22].colorbpp = 4; oldmodes[22].xdpi =180; oldmodes[22].ydpi = 90;
 	oldmodes[23].colorbpp = 1; oldmodes[23].xdpi = 90; oldmodes[23].ydpi = 90;
 	oldmodes[24].colorbpp = 8; oldmodes[24].xdpi = 90; oldmodes[24].ydpi = 45;
 	oldmodes[25].colorbpp = 1; oldmodes[25].xdpi = 90; oldmodes[25].ydpi = 90;
@@ -162,6 +163,7 @@ void sprite_init(void)
 	oldmodes[29].colorbpp = 1; oldmodes[29].xdpi = 90; oldmodes[29].ydpi = 90;
 	oldmodes[30].colorbpp = 2; oldmodes[30].xdpi = 90; oldmodes[30].ydpi = 90;
 	oldmodes[31].colorbpp = 4; oldmodes[31].xdpi = 90; oldmodes[31].ydpi = 90;
+	oldmodes[32].colorbpp = 8; oldmodes[32].xdpi = 90; oldmodes[32].ydpi = 90;
 	oldmodes[33].colorbpp = 1; oldmodes[33].xdpi = 90; oldmodes[33].ydpi = 45;
 	oldmodes[34].colorbpp = 2; oldmodes[34].xdpi = 90; oldmodes[34].ydpi = 45;
 	oldmodes[35].colorbpp = 4; oldmodes[35].xdpi = 90; oldmodes[35].ydpi = 45;
@@ -176,6 +178,9 @@ void sprite_init(void)
 	oldmodes[44].colorbpp = 1; oldmodes[44].xdpi = 90; oldmodes[44].ydpi = 45;
 	oldmodes[45].colorbpp = 2; oldmodes[45].xdpi = 90; oldmodes[45].ydpi = 45;
 	oldmodes[46].colorbpp = 4; oldmodes[46].xdpi = 90; oldmodes[46].ydpi = 45;
+	oldmodes[47].colorbpp = 8; oldmodes[47].xdpi = 45; oldmodes[47].ydpi = 45;
+	oldmodes[48].colorbpp = 4; oldmodes[48].xdpi = 45; oldmodes[48].ydpi = 90;
+	oldmodes[49].colorbpp = 8; oldmodes[49].xdpi = 45; oldmodes[49].ydpi = 90;
 
 	/* old modes have the same mask bpp as their colour bpp -- PRM1-781 */
 	for (uint32_t i = 0; i < 256; i++) {
@@ -354,11 +359,12 @@ struct sprite_mask_state* sprite_init_mask_state(struct sprite* sprite, struct s
 
 	mask_state->x = header->first_used_bit;
 	mask_state->y = 0;
-	mask_state->max_x = header->width_words * 32 - (31 - header->last_used_bit) - 1;
-	mask_state->max_y = sprite->height - 1;
-	mask_state->offset_into_word = mask_state->x % 32;
-	mask_state->current_byte_index = 0;
-	mask_state->current_word = BTUINT((mask + mask_state->current_byte_index));
+	mask_state->first_used_bit = header->first_used_bit;
+	mask_state->row_max_bit = header->width_words * 32 - (31 - header->last_used_bit);
+	mask_state->height = sprite->height;
+	mask_state->bpp = sprite->mode->maskbpp;
+	mask_state->current_word = BTUINT(mask);
+	mask_state->current_byte_index = 4;
 
 	return mask_state;
 }
@@ -366,13 +372,31 @@ struct sprite_mask_state* sprite_init_mask_state(struct sprite* sprite, struct s
 /* Get the next mask byte.
  * Mask of 0xff denotes 100% opaque, 0x00 denotes 100% transparent
  */
-uint8_t sprite_next_mask_pixel(struct sprite* sprite, struct sprite_header* header, struct sprite_mask_state* mask_state)
+uint8_t sprite_next_mask_pixel(uint8_t* mask, struct sprite_mask_state* mask_state)
 {
-	/* a 1bpp mask (for new mode sprites), each row is word aligned (therefore potential righthand wastage */
-	sprite = sprite; header = header; mask_state = mask_state;
-	
+	/* a 1bpp mask (for new mode sprites), each row is word aligned (therefore potential righthand wastage */	
+	const uint32_t bitmask = (1 << mask_state->bpp) - 1;
+	const uint32_t offset_into_word = mask_state->x % 32;
+	const uint8_t pixel = (mask_state->current_word & (bitmask << offset_into_word)) >> offset_into_word;
 
-	return 0xff;
+	if (mask_state->x + mask_state->bpp < mask_state->row_max_bit && offset_into_word + mask_state->bpp == 32) {
+		mask_state->current_word = BTUINT((mask + mask_state->current_byte_index));
+		mask_state->current_byte_index += 4;
+	}
+
+	mask_state->x += mask_state->bpp;
+	if (mask_state->x >= mask_state->row_max_bit) {
+		mask_state->x = mask_state->first_used_bit;
+
+		if (mask_state->y + 1 < mask_state->height) {
+			mask_state->current_word = BTUINT((mask + mask_state->current_byte_index));
+			mask_state->current_byte_index += 4;
+		}
+
+		mask_state->y++;
+	}
+
+	return pixel;
 }
 
 void sprite_load_high_color(uint8_t* image_in, uint8_t* mask, struct sprite* sprite, struct sprite_header* header)
