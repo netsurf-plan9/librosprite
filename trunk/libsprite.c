@@ -18,17 +18,22 @@ struct sprite_header {
 	uint32_t first_used_bit; /* old format only (spriteType = 0) */
 	uint32_t last_used_bit;
 	uint32_t image_size; /* bytes */
-	uint32_t mask_size;
+	uint32_t mask_size; /* bytes */
 };
 
 struct sprite_mask_state {
 	uint32_t x;
 	uint32_t y;
+	uint32_t max_x;
+	uint32_t max_y;
+	uint32_t offset_into_word;
+	uint32_t current_byte_index;
+	uint32_t current_word;
 };
 
 static struct sprite_mode oldmodes[256];
 
-static uint8_t sprite_16bpp_translate[] = {
+static const uint8_t sprite_16bpp_translate[] = {
 	0x00, 0x08, 0x10, 0x18, 0x20, 0x29, 0x31, 0x39,
 	0x41, 0x4a, 0x52, 0x5a, 0x62, 0x6a, 0x73, 0x7b,
 	0x83, 0x8b, 0x94, 0x9c, 0xa4, 0xac, 0xb4, 0xbd,
@@ -39,18 +44,18 @@ static uint8_t sprite_16bpp_translate[] = {
  * which in turn requires sprite_load_palette(FILE* f)
  * defined in this file
  */
-static uint32_t sprite_1bpp_palette[] = { 0xffffff00, 0x0 };
+static const uint32_t sprite_1bpp_palette[] = { 0xffffff00, 0x0 };
 
-static uint32_t sprite_2bpp_palette[] = { 0xffffff00, 0xbbbbbb00, 0x77777700, 0x0 };
+static const uint32_t sprite_2bpp_palette[] = { 0xffffff00, 0xbbbbbb00, 0x77777700, 0x0 };
 
-static uint32_t sprite_4bpp_palette[] = {
+static const uint32_t sprite_4bpp_palette[] = {
 0xffffff00, 0xdddddd00, 0xbbbbbb00, 0x99999900,
 0x77777700, 0x55555500, 0x33333300, 0x0,
 0x449900, 0xeeee0000, 0xcc0000, 0xdd000000,
 0xeeeebb00, 0x55880000, 0xffbb0000, 0xbbff00
 };
 
-static uint32_t sprite_8bpp_palette[] = {
+static const uint32_t sprite_8bpp_palette[] = {
 0x0, 0x11111100, 0x22222200, 0x33333300,
 0x44000000, 0x55111100, 0x66222200, 0x77333300,
 0x4400, 0x11115500, 0x22226600, 0x33337700,
@@ -117,10 +122,11 @@ static uint32_t sprite_8bpp_palette[] = {
 0xcccccc00, 0xdddddd00, 0xeeeeee00, 0xffffff00
 };
 
-void sprite_init()
+void sprite_init(void)
 {
 	for (uint32_t i = 0; i < 256; i++) {
 		oldmodes[i].colorbpp = 0;
+		oldmodes[i].maskbpp  = 1;
 		oldmodes[i].xdpi     = 0;
 		oldmodes[i].ydpi     = 0;
 	}
@@ -173,7 +179,7 @@ void sprite_init()
 
 	/* old modes have the same mask bpp as their colour bpp -- PRM1-781 */
 	for (uint32_t i = 0; i < 256; i++) {
-		oldmodes[i].maskbpp = oldmodes[i].colorbpp;
+		oldmodes[i].mask_width = oldmodes[i].colorbpp;
 	}
 }
 
@@ -212,6 +218,7 @@ struct sprite_mode* sprite_get_mode(uint32_t spriteMode)
 		 * unless bit 31 is set (http://select.riscos.com/prm/graphics/sprites/alphachannel.html)
 		 */
 		mode->maskbpp = (hasEightBitAlpha ? 8 : 1);
+		mode->mask_width = mode->maskbpp;
 		mode->xdpi = (spriteMode & 0x07ffc000) >> 14; /* preserve bits 14-26 only */
 		mode->ydpi = (spriteMode & 0x00003ffe) >> 1; /* preserve bits 1-13 only */
 
@@ -277,6 +284,7 @@ uint32_t sprite_palette_lookup(struct sprite* sprite, uint32_t pixel)
 	return translated_pixel;
 }
 
+/* TODO: could make static inline? */
 uint32_t sprite_cmyk_to_rgb(uint32_t cmyk)
 {
         const uint8_t c = cmyk & 0xff;
@@ -297,12 +305,15 @@ uint32_t sprite_cmyk_to_rgb(uint32_t cmyk)
         return r << 24 | g << 16 | b << 8;
 }
 
+/* TODO: could make static inline? */
 uint32_t sprite_upscale_color(uint32_t pixel, struct sprite_mode* mode)
 {
 	switch (mode->colorbpp) {
 	case 32:
 		if (mode->color_model == SPRITE_RGB) {
 			/* swap from 0xAABBGGRR to 0xRRGGBBAA */
+			/*uint8_t alpha = pixel & (0xff << 24);
+			 TODO: think about mask/alpha */
 			return BSWAP(pixel);
 		} else {
 			return sprite_cmyk_to_rgb(pixel);
@@ -337,13 +348,30 @@ uint32_t sprite_upscale_color(uint32_t pixel, struct sprite_mode* mode)
 	}
 }
 
+struct sprite_mask_state* sprite_init_mask_state(struct sprite* sprite, struct sprite_header* header, uint8_t* mask)
+{
+	struct sprite_mask_state* mask_state = malloc(sizeof(struct sprite_mask_state));
+
+	mask_state->x = header->first_used_bit;
+	mask_state->y = 0;
+	mask_state->max_x = header->width_words * 32 - (31 - header->last_used_bit) - 1;
+	mask_state->max_y = sprite->height - 1;
+	mask_state->offset_into_word = mask_state->x % 32;
+	mask_state->current_byte_index = 0;
+	mask_state->current_word = BTUINT((mask + mask_state->current_byte_index));
+
+	return mask_state;
+}
+
 /* Get the next mask byte.
  * Mask of 0xff denotes 100% opaque, 0x00 denotes 100% transparent
  */
-uint8_t sprite_get_mask(struct sprite* sprite, struct sprite_header* header, struct sprite_mask_state* mask_state)
+uint8_t sprite_next_mask_pixel(struct sprite* sprite, struct sprite_header* header, struct sprite_mask_state* mask_state)
 {
 	/* a 1bpp mask (for new mode sprites), each row is word aligned (therefore potential righthand wastage */
 	sprite = sprite; header = header; mask_state = mask_state;
+	
+
 	return 0xff;
 }
 
@@ -384,8 +412,7 @@ void sprite_load_high_color(uint8_t* image_in, uint8_t* mask, struct sprite* spr
 
 void sprite_load_low_color(uint8_t* image_in, uint8_t* mask, struct sprite* sprite, struct sprite_header* header)
 {
-	mask = mask; /* TODO: mask */
-
+	mask = mask;
 	sprite->image = malloc(sprite->width * sprite->height * 4); /* all image data is 32bpp going out */
 
 	const uint32_t bpp = sprite->mode->colorbpp;

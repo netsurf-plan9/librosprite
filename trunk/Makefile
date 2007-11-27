@@ -3,10 +3,13 @@ CC = gcc
 LD = gcc
 ARFLAGS = -cru
 CFLAGS = -Wall -Wextra -Wundef -Wpointer-arith -Wcast-align \
-	-Wwrite-strings \
-	 -Wnested-externs -Werror -pedantic -std=c99
+	-Wwrite-strings -Wstrict-prototypes \
+	-Wnested-externs -Werror -pedantic -std=c99 \
+	-Wno-format-zero-length -Wformat-security -Wstrict-aliasing=2 \
+	-Wmissing-format-attribute \
+	-Wformat=2 -Werror-implicit-function-declaration
 LDFLAGS = -L./
-#-Wmissing-declarations -Wmissing-prototypes -Wstrict-prototypes
+#-Wmissing-declarations -Wmissing-prototypes 
 
 example: libsprite.a example.o
 	${LD} -g -o $@ example.o ${LDFLAGS} -lsprite -lSDL

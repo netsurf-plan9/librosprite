@@ -10,9 +10,9 @@ void sdl_draw_pixel(SDL_Surface* surface, uint32_t x, uint32_t y, uint32_t color
 	uint32_t* pixel = ((uint32_t*) (surface->pixels)) + (y * surface->pitch/4) + x;
 	/* pretty sure SDL can do this, but can't figure out how */
 	uint32_t alpha = 0xff;/*color & 0x000000ff;*/
-	uint32_t r = ((color & 0xff000000) >> 24) * (alpha / 256.0);
-	uint32_t g = ((color & 0x00ff0000) >> 16) * (alpha / 256.0);
-	uint32_t b = ((color & 0x0000ff00) >> 8) * (alpha / 256.0);
+	uint32_t r = ((color & 0xff000000) >> 24) * (alpha / 255.0);
+	uint32_t g = ((color & 0x00ff0000) >> 16) * (alpha / 255.0);
+	uint32_t b = ((color & 0x0000ff00) >> 8) * (alpha / 255.0);
 	uint32_t mapped_color = SDL_MapRGBA(surface->format, r, g, b, alpha);
 	
 	*pixel = mapped_color;
@@ -73,6 +73,7 @@ int main(int argc, char *argv[])
 		if (sprite->has_palette) printf("paletteSize %u\n", sprite->palettesize);
 
 		printf("hasMask %s\n", sprite->has_mask ? "YES" : "NO");
+		if (sprite->has_mask) printf("mask_width %u\n", sprite->mode->mask_width);
 		if (sprite->has_mask) printf("maskbpp %u\n", sprite->mode->maskbpp);
 
 		sdl_blank(screen);
