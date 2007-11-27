@@ -360,7 +360,7 @@ struct sprite_mask_state* sprite_init_mask_state(struct sprite* sprite, struct s
 	mask_state->x = header->first_used_bit;
 	mask_state->y = 0;
 	mask_state->first_used_bit = header->first_used_bit;
-	mask_state->row_max_bit = header->width_words * 32 - (31 - header->last_used_bit);
+	mask_state->row_max_bit = sprite->width * sprite->mode->maskbpp;
 	mask_state->height = sprite->height;
 	mask_state->bpp = sprite->mode->maskbpp;
 	mask_state->current_word = BTUINT(mask);
