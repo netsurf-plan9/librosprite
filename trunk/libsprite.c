@@ -409,7 +409,8 @@ uint32_t sprite_next_mask_pixel(uint8_t* mask, struct sprite_mask_state* mask_st
 
 void sprite_load_high_color(uint8_t* image_in, uint8_t* mask, struct sprite* sprite, struct sprite_header* header)
 {
-	mask = mask;
+	struct sprite_mask_state* mask_state = NULL;
+	if (sprite->has_mask) mask_state = sprite_init_mask_state(sprite, header, mask);
 
 	sprite->image = malloc(sprite->width * sprite->height * 4); /* all image data is 32bpp going out */
 
@@ -431,6 +432,11 @@ void sprite_load_high_color(uint8_t* image_in, uint8_t* mask, struct sprite* spr
 			}
 			
 			pixel = sprite_upscale_color(pixel, sprite->mode);
+			/* TODO: handle photodesk-style 0xBBGGRRAA sprites */
+			if (sprite->has_mask) {
+				uint8_t mask_pixel = sprite_next_mask_pixel(mask, mask_state);
+				pixel = (pixel & 0xffffff00) | mask_pixel;
+			}
 			sprite->image[y*sprite->width + x_pixels] = pixel;
 			x_pixels++;
 		}
@@ -440,6 +446,8 @@ void sprite_load_high_color(uint8_t* image_in, uint8_t* mask, struct sprite* spr
 			currentByteIndex = (currentByteIndex + 3) & ~3; /* Round up to next multiple of 4 */
 		}
 	}
+
+	if (sprite->has_mask) free(mask_state);
 }
 
 void sprite_load_low_color(uint8_t* image_in, uint8_t* mask, struct sprite* sprite, struct sprite_header* header)
