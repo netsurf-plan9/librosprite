@@ -9,13 +9,12 @@ void sdl_draw_pixel(SDL_Surface* surface, uint32_t x, uint32_t y, uint32_t color
 {
 	uint32_t* pixel = ((uint32_t*) (surface->pixels)) + (y * surface->pitch/4) + x;
 	/* pretty sure SDL can do this, but can't figure out how */
+	uint32_t bg_color = ((int) (x / 4.0) + ((int)(y / 4.0) % 2)) % 2 ? 0x99 : 0x66;
+
 	uint32_t alpha = color & 0x000000ff;
-	uint32_t r = alpha;
-	uint32_t g = alpha;
-	uint32_t b = alpha;
-	/*uint32_t r = ((color & 0xff000000) >> 24) * (alpha / 255.0);
-	uint32_t g = ((color & 0x00ff0000) >> 16) * (alpha / 255.0);
-	uint32_t b = ((color & 0x0000ff00) >> 8) * (alpha / 255.0);*/
+	uint32_t r = (bg_color + (((color & 0xff000000) >> 24) - bg_color) * (alpha / 255.0));
+	uint32_t g = (bg_color + (((color & 0x00ff0000) >> 16) - bg_color) * (alpha / 255.0));
+	uint32_t b = (bg_color + (((color & 0x0000ff00) >> 8)  - bg_color) * (alpha / 255.0));
 	uint32_t mapped_color = SDL_MapRGB(surface->format, r, g, b);
 	
 	*pixel = mapped_color;
@@ -25,7 +24,7 @@ void sdl_blank(SDL_Surface* surface)
 {
 	for (uint32_t y = 0; y < (uint32_t) surface->h; y++) {
 		for (uint32_t x = 0; x < (uint32_t) surface->w; x++) {
-			sdl_draw_pixel(surface, x, y, (uint32_t) 0);
+			sdl_draw_pixel(surface, x, y, (uint32_t) ((int) (x / 4.0) + ((int)(y / 4.0) % 2)) % 2 ? 0x999999ff : 0x666666ff);
 		}
 	}
 }

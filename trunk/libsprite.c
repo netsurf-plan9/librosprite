@@ -378,6 +378,7 @@ uint32_t sprite_next_mask_pixel(uint8_t* mask, struct sprite_mask_state* mask_st
 	const uint32_t bitmask = (1 << mask_state->bpp) - 1;
 	const uint32_t offset_into_word = mask_state->x % 32;
 	uint32_t pixel = (mask_state->current_word & (bitmask << offset_into_word)) >> offset_into_word;
+	printf("%2x ", pixel);
 
 	if (mask_state->x + mask_state->bpp < mask_state->row_max_bit && offset_into_word + mask_state->bpp == 32) {
 		mask_state->current_word = BTUINT((mask + mask_state->current_byte_index));
@@ -465,7 +466,7 @@ void sprite_load_low_color(uint8_t* image_in, uint8_t* mask, struct sprite* spri
 			pixel = sprite_palette_lookup(sprite, pixel); /* lookup returns 32bpp */
 			if (sprite->has_mask) {
 				uint8_t mask_pixel = sprite_next_mask_pixel(mask, mask_state);
-				pixel = pixel | mask_pixel;
+				pixel = (pixel & 0xffffff00) | mask_pixel;
 			}
 			sprite->image[y*sprite->width + x_pixels] = pixel;
 			x_pixels++;
@@ -482,6 +483,8 @@ void sprite_load_low_color(uint8_t* image_in, uint8_t* mask, struct sprite* spri
 			currentword = BTUINT((image_in + current_byte_index));
 			current_byte_index += 4;
 		}
+
+		printf("\n");
 	}
 
 	if (sprite->has_mask) free(mask_state);
