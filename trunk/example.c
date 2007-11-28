@@ -12,9 +12,12 @@ void sdl_draw_pixel(SDL_Surface* surface, uint32_t x, uint32_t y, uint32_t color
 	uint32_t bg_color = ((int) (x / 4.0) + ((int)(y / 4.0) % 2)) % 2 ? 0x99 : 0x66;
 
 	uint32_t alpha = color & 0x000000ff;
-	uint32_t r = (bg_color + (((color & 0xff000000) >> 24) - bg_color) * (alpha / 255.0));
-	uint32_t g = (bg_color + (((color & 0x00ff0000) >> 16) - bg_color) * (alpha / 255.0));
-	uint32_t b = (bg_color + (((color & 0x0000ff00) >> 8)  - bg_color) * (alpha / 255.0));
+	uint32_t r = (color & 0xff000000) >> 24;
+	uint32_t g = (color & 0x00ff0000) >> 16;
+	uint32_t b = (color & 0x0000ff00) >> 8;
+	r = ((alpha / 255.0) * r) + (((255-alpha) / 255.0) * bg_color);
+	g = ((alpha / 255.0) * g) + (((255-alpha) / 255.0) * bg_color);
+	b = ((alpha / 255.0) * b) + (((255-alpha) / 255.0) * bg_color);
 	uint32_t mapped_color = SDL_MapRGB(surface->format, r, g, b);
 	
 	*pixel = mapped_color;
