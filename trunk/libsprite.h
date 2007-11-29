@@ -17,10 +17,10 @@ struct sprite_area {
 struct sprite_mode {
 	uint32_t colorbpp;
 	/* maskbpp denotes the amount of alpha bpp used
-     * while mask_width is the bits used to store the mask.
-     * Old modes have the same mask_width as their colorbpp, but the value
+	 * while mask_width is the bits used to store the mask.
+	 * Old modes have the same mask_width as their colorbpp, but the value
 	 * is always all-zeroes or all-ones.
-     * New modes can have 1bpp or 8bpp masks
+	 * New modes can have 1bpp or 8bpp masks
 	 */
 	uint32_t maskbpp;
 	uint32_t mask_width; /* in pixels */

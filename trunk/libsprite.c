@@ -311,15 +311,26 @@ uint32_t sprite_cmyk_to_rgb(uint32_t cmyk)
 }
 
 /* TODO: could make static inline? */
-uint32_t sprite_upscale_color(uint32_t pixel, struct sprite_mode* mode)
+uint32_t sprite_upscale_color(uint32_t pixel, struct sprite_mode* mode, bool* has_alpha_pixel_data)
 {
 	switch (mode->colorbpp) {
 	case 32:
 		if (mode->color_model == SPRITE_RGB) {
 			/* swap from 0xAABBGGRR to 0xRRGGBBAA */
-			/*uint8_t alpha = pixel & (0xff << 24);
-			 TODO: think about mask/alpha */
-			return BSWAP(pixel);
+			pixel = BSWAP(pixel);
+
+			uint8_t alpha = pixel & 0xff;
+			if (alpha == 0x00) {
+				if (!(*has_alpha_pixel_data)) {
+					pixel = pixel | 0xff;
+				}
+			} else {
+				*has_alpha_pixel_data = true;
+				/* TODO: if this is the first non 0x00 alpha byte we've seen,
+				 * we need to go through all previous pixels and set them to 0xff
+				 */
+			}
+			return pixel;
 		} else {
 			return sprite_cmyk_to_rgb(pixel);
 		}
@@ -350,6 +361,13 @@ uint32_t sprite_upscale_color(uint32_t pixel, struct sprite_mode* mode)
 		assert(false); /* shouldn't need to call for <= 8bpp, since a palette lookup will return 32bpp */
 	default:
 		assert(false); /* unknown bpp */
+	}
+}
+
+void sprite_fix_alpha(uint32_t* image, uint32_t pixels)
+{
+	for (uint32_t i = 0; i <= pixels; i++) {
+		image[i] = image[i] & 0xffffff00;
 	}
 }
 
@@ -419,6 +437,8 @@ void sprite_load_high_color(uint8_t* image_in, uint8_t* mask, struct sprite* spr
 	const uint32_t bytesPerPixel = bpp / 8;
 	const uint32_t row_max_bit = header->width_words * 32 - (31 - header->last_used_bit); /* Last used bit in row */
 
+	bool has_alpha_pixel_data = false;
+
 	/* Spec says that there must be no left-hand wastage */
 	assert(header->first_used_bit == 0);
 	
@@ -431,7 +451,11 @@ void sprite_load_high_color(uint8_t* image_in, uint8_t* mask, struct sprite* spr
 				pixel = pixel | (b << (j * 8));
 			}
 			
-			pixel = sprite_upscale_color(pixel, sprite->mode);
+			bool old_has_alpha = has_alpha_pixel_data;
+			pixel = sprite_upscale_color(pixel, sprite->mode, &has_alpha_pixel_data);
+			if (old_has_alpha != has_alpha_pixel_data) {
+				sprite_fix_alpha(sprite->image, (y * sprite->width) + x_pixels - 1);
+			}
 			/* TODO: handle photodesk-style 0xBBGGRRAA sprites */
 			if (sprite->has_mask) {
 				uint8_t mask_pixel = sprite_next_mask_pixel(mask, mask_state);
