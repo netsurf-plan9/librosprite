@@ -1,11 +1,10 @@
-#ifndef libsprite_h_
-#define libsprite_h_
+#ifndef ROSPRITE_H
+#define ROSPRITE_H
 
 #include <stdint.h>
 #include <stdbool.h>
 
-#define SPRITE_RGB 0
-#define SPRITE_CMYK 1
+typedef enum { rosprite_rgb, rosprite_cmyk } rosprite_color_model;
 
 struct sprite_area {
 	uint32_t extension_size; /* size of extension_words in bytes */
@@ -26,7 +25,7 @@ struct sprite_mode {
 	uint32_t mask_width; /* in pixels */
 	uint32_t xdpi;
 	uint32_t ydpi;
-	uint32_t color_model;
+	rosprite_color_model color_model;
 };
 
 struct sprite_palette {
@@ -41,13 +40,17 @@ struct sprite {
 	bool has_palette;
 	uint32_t palettesize; /* in number of entries (each entry is a word) */
 	uint32_t* palette;
-	uint32_t width; /* width and height in _pixels_ */
-	uint32_t height;
-	uint32_t* image;
+	uint32_t width; /* width in pixels */
+	uint32_t height; /* height in pixels */
+	uint32_t* image; /* image data in 0xRRGGBBAA words */
 };
 
 void sprite_init(void);
 struct sprite_area* sprite_load_file(FILE* f);
-struct sprite_palette* sprite_load_palette(FILE* f);
+void rosprite_destroy_sprite_area(struct sprite_area *);
+
+struct sprite_palette* rosprite_load_palette(FILE* f);
+void rosprite_destroy_palette(struct sprite_palette *);
+
 
 #endif

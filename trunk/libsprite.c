@@ -9,7 +9,10 @@
 
 #define LOGDBG(...) printf(__VA_ARGS__);
 
+/* reads four bytes, 00, 11, 22 and 33, of a byte array b to give 0x33221100 */
 #define BTUINT(b) (b[0] | (b[1] << 8) | (b[2] << 16) | (b[3] << 24))
+
+/* reverse the byte order of a word such that 0xAABBCCDD becomes 0xDDCCBBAA */
 #define BSWAP(word) (((word & (0x000000ff)) << 24) | ((word & 0x0000ff00) << 8) | ((word & 0x00ff0000) >> 8) | ((word & 0xff000000) >> 24))
 
 struct sprite_header {
@@ -34,6 +37,7 @@ struct sprite_mask_state {
 
 static struct sprite_mode oldmodes[256];
 
+/* table for converting a 5bit channel into an 8bit channel (used for 16bpp to 32bpp conversion) */
 static const uint8_t sprite_16bpp_translate[] = {
 	0x00, 0x08, 0x10, 0x18, 0x20, 0x29, 0x31, 0x39,
 	0x41, 0x4a, 0x52, 0x5a, 0x62, 0x6a, 0x73, 0x7b,
@@ -227,7 +231,7 @@ struct sprite_mode* sprite_get_mode(uint32_t spriteMode)
 		mode->xdpi = (spriteMode & 0x07ffc000) >> 14; /* preserve bits 14-26 only */
 		mode->ydpi = (spriteMode & 0x00003ffe) >> 1; /* preserve bits 1-13 only */
 
-		mode->color_model = SPRITE_RGB;
+		mode->color_model = rosprite_rgb;
 		switch (spriteType) {
 		case 1:
 			mode->colorbpp = 1; break;
@@ -243,10 +247,12 @@ struct sprite_mode* sprite_get_mode(uint32_t spriteMode)
 			mode->colorbpp = 32; break;
 		case 7:
 			mode->colorbpp = 32;
-			mode->color_model = SPRITE_CMYK;
+			mode->color_model = rosprite_cmyk;
 			break;
 		case 8:
 			mode->colorbpp = 24; break;
+		default:
+			assert(false);
 		}
 	} else {
 		/* clone station mode and return */
@@ -289,23 +295,22 @@ uint32_t sprite_palette_lookup(struct sprite* sprite, uint32_t pixel)
 	return translated_pixel;
 }
 
-/* TODO: could make static inline? */
-uint32_t sprite_cmyk_to_rgb(uint32_t cmyk)
+static inline uint32_t sprite_cmyk_to_rgb(uint32_t cmyk)
 {
-        const uint8_t c = cmyk & 0xff;
-        const uint8_t m = (cmyk & 0xff00) >> 8;
-        const uint8_t y = (cmyk & 0xff0000) >> 16;
-        const uint8_t k = cmyk >> 24;
+        uint8_t c = cmyk & 0xff;
+        uint8_t m = (cmyk & 0xff00) >> 8;
+        uint8_t y = (cmyk & 0xff0000) >> 16;
+        uint8_t k = cmyk >> 24;
  
         /* Convert to CMY colourspace */
-        const uint8_t C = c + k;
-        const uint8_t M = m + k;
-        const uint8_t Y = y + k;
+        uint8_t C = c + k;
+        uint8_t M = m + k;
+        uint8_t Y = y + k;
  
         /* And to RGB */
-        const uint8_t r = 255 - C;
-        const uint8_t g = 255 - M;
-        const uint8_t b = 255 - Y;
+        uint8_t r = 255 - C;
+        uint8_t g = 255 - M;
+        uint8_t b = 255 - Y;
  
         return r << 24 | g << 16 | b << 8;
 }
@@ -315,7 +320,7 @@ uint32_t sprite_upscale_color(uint32_t pixel, struct sprite_mode* mode, bool* ha
 {
 	switch (mode->colorbpp) {
 	case 32:
-		if (mode->color_model == SPRITE_RGB) {
+		if (mode->color_model == rosprite_rgb) {
 			/* swap from 0xAABBGGRR to 0xRRGGBBAA */
 			pixel = BSWAP(pixel);
 
@@ -396,7 +401,6 @@ uint32_t sprite_next_mask_pixel(uint8_t* mask, struct sprite_mask_state* mask_st
 	const uint32_t bitmask = (1 << mask_state->bpp) - 1;
 	const uint32_t offset_into_word = mask_state->x % 32;
 	uint32_t pixel = (mask_state->current_word & (bitmask << offset_into_word)) >> offset_into_word;
-	printf("%2x ", pixel);
 
 	if (mask_state->x + mask_state->bpp < mask_state->row_max_bit && offset_into_word + mask_state->bpp == 32) {
 		mask_state->current_word = BTUINT((mask + mask_state->current_byte_index));
@@ -568,9 +572,6 @@ struct sprite* sprite_load_sprite(FILE* spritefile)
 		header->image_size = maskOffset - imageOffset;
 		header->mask_size  = nextSpriteOffset - 44 - sprite->palettesize - header->image_size;
 	}
-
-	if (sprite->has_mask) LOGDBG("mask_size (bits) %u\n", header->mask_size * 8);
-	if (sprite->has_mask) LOGDBG("	w*h %u\n", sprite->width * sprite->height);
 	
 	if (sprite->has_palette) {
 		assert(sprite->palettesize % 8 == 0);
@@ -643,6 +644,21 @@ struct sprite_area* sprite_load_file(FILE* f)
 	return sprite_area;
 }
 
+void rosprite_destroy_sprite_area(struct sprite_area* sprite_area)
+{
+	for (uint32_t i = 0; i < sprite_area->sprite_count; i++) {
+		struct sprite* sprite = sprite_area->sprites[i];
+		free(sprite->mode);
+		if (sprite->has_palette) free(sprite->palette);
+		free(sprite->image);
+		free(sprite);
+	}
+
+	free(sprite_area->sprites);
+	if (sprite_area->extension_size > 0) free(sprite_area->extension_words);
+	free(sprite_area);
+}
+
 struct sprite_palette* sprite_load_palette(FILE* f)
 {
 	/* Palette file is in groups of 6 bytes, each is a VDU 19 (set palette)
@@ -680,3 +696,10 @@ struct sprite_palette* sprite_load_palette(FILE* f)
 
 	return palette;
 }
+
+void rosprite_destroy_palette(struct sprite_palette* palette)
+{
+	free(palette->palette);
+	free(palette);
+}
+
