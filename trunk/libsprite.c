@@ -7,8 +7,6 @@
 
 #include "libsprite.h"
 
-#define LOGDBG(...) printf(__VA_ARGS__);
-
 /* reads four bytes, 00, 11, 22 and 33, of a byte array b to give 0x33221100 */
 #define BTUINT(b) (b[0] | (b[1] << 8) | (b[2] << 16) | (b[3] << 24))
 
@@ -35,7 +33,7 @@ struct rosprite_mask_state {
 	uint32_t bpp;
 };
 
-static struct rosprite_mode oldmodes[] = {
+static const struct rosprite_mode oldmodes[] = {
 /*0*/{ .colorbpp = 1, .maskbpp = 1, .mask_width = 1, .xdpi = 90, .ydpi = 45, .color_model = rosprite_rgb },
 /*1*/{ .colorbpp = 2, .maskbpp = 1, .mask_width = 2, .xdpi = 45, .ydpi = 45, .color_model = rosprite_rgb },
 /*2*/{ .colorbpp = 4, .maskbpp = 1, .mask_width = 4, .xdpi = 22, .ydpi = 45, .color_model = rosprite_rgb },
@@ -575,7 +573,7 @@ struct rosprite* sprite_load_sprite(FILE* spritefile)
 			uint32_t word2 = sprite_read_word(spritefile);
 			assert(word1 == word2); /* TODO: if they aren't, START FLASHING */
 			
-			/* swap rr and bb parts (seems to give the right result, but where is it documented? PRM1-731 */
+			/* swap rr and bb parts -- PRM1-731 */
 			uint32_t entry = ((word1 & 0xff000000) >> 16) | (word1 & 0x00ff0000) | ((word1 & 0x0000ff00) << 16) | 0xff;
 			sprite->palette[j] = entry;
 		}
@@ -688,4 +686,3 @@ void rosprite_destroy_palette(struct rosprite_palette* palette)
 	free(palette->palette);
 	free(palette);
 }
-
