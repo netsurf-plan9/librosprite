@@ -54,9 +54,9 @@ int main(int argc, char *argv[])
 	}
 
 	printf("Loading %s\n", filename);
-	sprite_init();
+	rosprite_init();
 
-	struct sprite_area* sprite_area = sprite_load_file(spritefile);
+	struct rosprite_area* sprite_area = rosprite_load_file(spritefile);
 	printf("sprite_count %u\n", sprite_area->sprite_count);
 	printf("extension_size %u\n", sprite_area->extension_size);
 
@@ -65,7 +65,7 @@ int main(int argc, char *argv[])
 	SDL_SetAlpha(screen, SDL_SRCALPHA, 0);
 
 	for (uint32_t i = 0; i < sprite_area->sprite_count; i++) {
-		struct sprite* sprite = sprite_area->sprites[i];
+		struct rosprite* sprite = sprite_area->sprites[i];
 		printf("\nname %s\n", sprite->name);
 		printf("color_model %s\n", sprite->mode->color_model == rosprite_rgb ? "RGB" : "CMYK");
 		printf("colorbpp %u\n", sprite->mode->colorbpp);

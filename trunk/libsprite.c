@@ -15,7 +15,7 @@
 /* reverse the byte order of a word such that 0xAABBCCDD becomes 0xDDCCBBAA */
 #define BSWAP(word) (((word & (0x000000ff)) << 24) | ((word & 0x0000ff00) << 8) | ((word & 0x00ff0000) >> 8) | ((word & 0xff000000) >> 24))
 
-struct sprite_header {
+struct rosprite_header {
 	uint32_t width_words; /* width in words */
 	/* height defined in sprite struct */
 	uint32_t first_used_bit; /* old format only (spriteType = 0) */
@@ -24,7 +24,7 @@ struct sprite_header {
 	uint32_t mask_size; /* bytes */
 };
 
-struct sprite_mask_state {
+struct rosprite_mask_state {
 	uint32_t x;
 	uint32_t y;
 	uint32_t first_used_bit;
@@ -35,7 +35,7 @@ struct sprite_mask_state {
 	uint32_t bpp;
 };
 
-static struct sprite_mode oldmodes[256];
+static struct rosprite_mode oldmodes[256];
 
 /* table for converting a 5bit channel into an 8bit channel (used for 16bpp to 32bpp conversion) */
 static const uint8_t sprite_16bpp_translate[] = {
@@ -127,7 +127,7 @@ static const uint32_t sprite_8bpp_palette[] = {
 0xccccccff, 0xddddddff, 0xeeeeeeff, 0xffffffff
 };
 
-void sprite_init(void)
+void rosprite_init(void)
 {
 	for (uint32_t i = 0; i < 256; i++) {
 		oldmodes[i].colorbpp = 0;
@@ -215,9 +215,9 @@ void sprite_read_bytes(FILE* stream, uint8_t* buf, size_t count)
 	}
 }
 
-struct sprite_mode* sprite_get_mode(uint32_t spriteMode)
+struct rosprite_mode* sprite_get_mode(uint32_t spriteMode)
 {
-	struct sprite_mode* mode = malloc(sizeof(struct sprite_mode));
+	struct rosprite_mode* mode = malloc(sizeof(struct rosprite_mode));
 
 	uint32_t spriteType = (spriteMode & 0x78000000) >> 27; /* preserve bits 27-30 only */
 
@@ -257,13 +257,13 @@ struct sprite_mode* sprite_get_mode(uint32_t spriteMode)
 	} else {
 		/* clone station mode and return */
 		assert(spriteMode < 256); /* don't think you can have modes over 255? */
-		memcpy(mode, &(oldmodes[spriteMode]), sizeof(struct sprite_mode));
+		memcpy(mode, &(oldmodes[spriteMode]), sizeof(struct rosprite_mode));
 	}
 
 	return mode;
 }
 
-uint32_t sprite_palette_lookup(struct sprite* sprite, uint32_t pixel)
+uint32_t sprite_palette_lookup(struct rosprite* sprite, uint32_t pixel)
 {
 	uint32_t translated_pixel;
 	 /* because we're dealing with 8bpp or less */
@@ -316,7 +316,7 @@ static inline uint32_t sprite_cmyk_to_rgb(uint32_t cmyk)
 }
 
 /* TODO: could make static inline? */
-uint32_t sprite_upscale_color(uint32_t pixel, struct sprite_mode* mode, bool* has_alpha_pixel_data)
+uint32_t sprite_upscale_color(uint32_t pixel, struct rosprite_mode* mode, bool* has_alpha_pixel_data)
 {
 	switch (mode->colorbpp) {
 	case 32:
@@ -376,9 +376,9 @@ void sprite_fix_alpha(uint32_t* image, uint32_t pixels)
 	}
 }
 
-struct sprite_mask_state* sprite_init_mask_state(struct sprite* sprite, struct sprite_header* header, uint8_t* mask)
+struct rosprite_mask_state* sprite_init_mask_state(struct rosprite* sprite, struct rosprite_header* header, uint8_t* mask)
 {
-	struct sprite_mask_state* mask_state = malloc(sizeof(struct sprite_mask_state));
+	struct rosprite_mask_state* mask_state = malloc(sizeof(struct rosprite_mask_state));
 
 	mask_state->x = header->first_used_bit;
 	mask_state->y = 0;
@@ -395,7 +395,7 @@ struct sprite_mask_state* sprite_init_mask_state(struct sprite* sprite, struct s
 /* Get the next mask byte.
  * Mask of 0xff denotes 100% opaque, 0x00 denotes 100% transparent
  */
-uint32_t sprite_next_mask_pixel(uint8_t* mask, struct sprite_mask_state* mask_state)
+uint32_t sprite_next_mask_pixel(uint8_t* mask, struct rosprite_mask_state* mask_state)
 {
 	/* a 1bpp mask (for new mode sprites), each row is word aligned (therefore potential righthand wastage */	
 	const uint32_t bitmask = (1 << mask_state->bpp) - 1;
@@ -429,14 +429,14 @@ uint32_t sprite_next_mask_pixel(uint8_t* mask, struct sprite_mask_state* mask_st
 	return pixel;
 }
 
-void sprite_load_high_color(uint8_t* image_in, uint8_t* mask, struct sprite* sprite, struct sprite_header* header)
+void sprite_load_high_color(uint8_t* image_in, uint8_t* mask, struct rosprite* sprite, struct rosprite_header* header)
 {
-	struct sprite_mask_state* mask_state = NULL;
+	struct rosprite_mask_state* mask_state = NULL;
 	if (sprite->has_mask) mask_state = sprite_init_mask_state(sprite, header, mask);
 
 	sprite->image = malloc(sprite->width * sprite->height * 4); /* all image data is 32bpp going out */
 
-	uint32_t currentByteIndex = 0; /* only for standalone test -- fread() will maintain this */
+	uint32_t currentByteIndex = 0;
 	const uint32_t bpp = sprite->mode->colorbpp;
 	const uint32_t bytesPerPixel = bpp / 8;
 	const uint32_t row_max_bit = header->width_words * 32 - (31 - header->last_used_bit); /* Last used bit in row */
@@ -478,9 +478,9 @@ void sprite_load_high_color(uint8_t* image_in, uint8_t* mask, struct sprite* spr
 	if (sprite->has_mask) free(mask_state);
 }
 
-void sprite_load_low_color(uint8_t* image_in, uint8_t* mask, struct sprite* sprite, struct sprite_header* header)
+void sprite_load_low_color(uint8_t* image_in, uint8_t* mask, struct rosprite* sprite, struct rosprite_header* header)
 {
-	struct sprite_mask_state* mask_state = NULL;
+	struct rosprite_mask_state* mask_state = NULL;
 	if (sprite->has_mask) mask_state = sprite_init_mask_state(sprite, header, mask);
 
 	sprite->image = malloc(sprite->width * sprite->height * 4); /* all image data is 32bpp going out */
@@ -526,12 +526,12 @@ void sprite_load_low_color(uint8_t* image_in, uint8_t* mask, struct sprite* spri
 	if (sprite->has_mask) free(mask_state);
 }
 
-struct sprite* sprite_load_sprite(FILE* spritefile)
+struct rosprite* sprite_load_sprite(FILE* spritefile)
 {
 	uint32_t nextSpriteOffset = sprite_read_word(spritefile);
 
-	struct sprite* sprite = malloc(sizeof(struct sprite));
-	struct sprite_header* header = malloc(sizeof(struct sprite_header));
+	struct rosprite* sprite = malloc(sizeof(struct rosprite));
+	struct rosprite_header* header = malloc(sizeof(struct rosprite_header));
 
 	sprite_read_bytes(spritefile, sprite->name, 12);
 	sprite->name[12] = '\0';
@@ -619,9 +619,9 @@ struct sprite* sprite_load_sprite(FILE* spritefile)
 	return sprite;
 }
 
-struct sprite_area* sprite_load_file(FILE* f)
+struct rosprite_area* rosprite_load_file(FILE* f)
 {
-	struct sprite_area* sprite_area = malloc(sizeof(struct sprite_area));
+	struct rosprite_area* sprite_area = malloc(sizeof(struct rosprite_area));
 
 	sprite_area->sprite_count = sprite_read_word(f);
 
@@ -635,19 +635,19 @@ struct sprite_area* sprite_load_file(FILE* f)
 		sprite_read_bytes(f, sprite_area->extension_words, (size_t) (sprite_area->extension_size));
 	}
 
-	sprite_area->sprites = malloc(sizeof(struct sprite*) * sprite_area->sprite_count); /* allocate array of pointers */
+	sprite_area->sprites = malloc(sizeof(struct rosprite*) * sprite_area->sprite_count); /* allocate array of pointers */
 	for (uint32_t i = 0; i < sprite_area->sprite_count; i++) {
-		struct sprite* sprite = sprite_load_sprite(f);
+		struct rosprite* sprite = sprite_load_sprite(f);
 		sprite_area->sprites[i] = sprite;
 	}
 
 	return sprite_area;
 }
 
-void rosprite_destroy_sprite_area(struct sprite_area* sprite_area)
+void rosprite_destroy_sprite_area(struct rosprite_area* sprite_area)
 {
 	for (uint32_t i = 0; i < sprite_area->sprite_count; i++) {
-		struct sprite* sprite = sprite_area->sprites[i];
+		struct rosprite* sprite = sprite_area->sprites[i];
 		free(sprite->mode);
 		if (sprite->has_palette) free(sprite->palette);
 		free(sprite->image);
@@ -659,20 +659,20 @@ void rosprite_destroy_sprite_area(struct sprite_area* sprite_area)
 	free(sprite_area);
 }
 
-struct sprite_palette* sprite_load_palette(FILE* f)
+struct rosprite_palette* rosprite_load_palette(FILE* f)
 {
 	/* Palette file is in groups of 6 bytes, each is a VDU 19 (set palette)
 	 * http://www.drobe.co.uk/show_manual.php?manual=/sh-cgi?manual=Vdu%26page=19 */
 
 	/* TODO: currently assume palette has linear entries (2nd byte in is 00, 01, 02 etc) */
-	struct sprite_palette* palette = malloc(sizeof(struct sprite_palette));
+	struct rosprite_palette* palette = malloc(sizeof(struct rosprite_palette));
 
 	palette->palette = malloc(sizeof(uint32_t) * 256); /* allocate 256 whether we need them all or not */
 
 	uint32_t c = 0;
 	uint8_t b[6];
 
-	size_t bytesRead = fread(&b, 1, 6, f);
+	size_t bytesRead = fread(&b, 1, 6, f); /* TODO: make this use a pluggable read function */
 	assert(bytesRead % 6 == 0);
 	while (bytesRead == 6) {
 		assert(b[0] == 19); /* VDU 19 */
@@ -697,7 +697,7 @@ struct sprite_palette* sprite_load_palette(FILE* f)
 	return palette;
 }
 
-void rosprite_destroy_palette(struct sprite_palette* palette)
+void rosprite_destroy_palette(struct rosprite_palette* palette)
 {
 	free(palette->palette);
 	free(palette);

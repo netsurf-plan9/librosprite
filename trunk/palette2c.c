@@ -18,15 +18,17 @@ int main(int argc, char *argv[])
 		exit(EXIT_FAILURE);
 	}
 
-	sprite_init();
+	rosprite_init();
 	
-	struct sprite_palette* palette = sprite_load_palette(palettefile);
+	struct rosprite_palette* palette = rosprite_load_palette(palettefile);
 
 	for (uint32_t i = 0; i < palette->size; i++) {
 		printf("0x%x, ", palette->palette[i]);
 	}
 
 	fclose(palettefile);
+
+	rosprite_destroy_palette(palette);
 
 	return EXIT_SUCCESS;
 }
