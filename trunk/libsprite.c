@@ -322,7 +322,6 @@ static inline uint32_t sprite_cmyk_to_rgb(uint32_t cmyk)
         return r << 24 | g << 16 | b << 8;
 }
 
-/* TODO: could make static inline? */
 static uint32_t sprite_upscale_color(uint32_t pixel, struct rosprite_mode* mode, bool* has_alpha_pixel_data)
 {
 	switch (mode->colorbpp) {
@@ -338,9 +337,6 @@ static uint32_t sprite_upscale_color(uint32_t pixel, struct rosprite_mode* mode,
 				}
 			} else {
 				*has_alpha_pixel_data = true;
-				/* TODO: if this is the first non 0x00 alpha byte we've seen,
-				 * we need to go through all previous pixels and set them to 0xff
-				 */
 			}
 			return pixel;
 		} else {
@@ -467,7 +463,6 @@ static void sprite_load_high_color(uint8_t* image_in, uint8_t* mask, struct rosp
 			if (old_has_alpha != has_alpha_pixel_data) {
 				sprite_fix_alpha(sprite->image, (y * sprite->width) + x_pixels - 1);
 			}
-			/* TODO: handle photodesk-style 0xBBGGRRAA sprites */
 			if (sprite->has_mask) {
 				uint8_t mask_pixel = sprite_next_mask_pixel(mask, mask_state);
 				pixel = (pixel & 0xffffff00) | mask_pixel;
