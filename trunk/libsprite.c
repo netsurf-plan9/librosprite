@@ -215,9 +215,9 @@ void sprite_read_bytes(FILE* stream, uint8_t* buf, size_t count)
 	}
 }
 
-struct rosprite_mode* sprite_get_mode(uint32_t spriteMode)
+static struct rosprite_mode sprite_get_mode(uint32_t spriteMode)
 {
-	struct rosprite_mode* mode = malloc(sizeof(struct rosprite_mode));
+	struct rosprite_mode mode;
 
 	uint32_t spriteType = (spriteMode & 0x78000000) >> 27; /* preserve bits 27-30 only */
 
@@ -226,44 +226,51 @@ struct rosprite_mode* sprite_get_mode(uint32_t spriteMode)
 		/* new modes have 1bpp masks (PRM5a-111)
 		 * unless bit 31 is set (http://select.riscos.com/prm/graphics/sprites/alphachannel.html)
 		 */
-		mode->maskbpp = (hasEightBitAlpha ? 8 : 1);
-		mode->mask_width = mode->maskbpp;
-		mode->xdpi = (spriteMode & 0x07ffc000) >> 14; /* preserve bits 14-26 only */
-		mode->ydpi = (spriteMode & 0x00003ffe) >> 1; /* preserve bits 1-13 only */
+		mode.maskbpp = (hasEightBitAlpha ? 8 : 1);
+		mode.mask_width = mode.maskbpp;
+		mode.xdpi = (spriteMode & 0x07ffc000) >> 14; /* preserve bits 14-26 only */
+		mode.ydpi = (spriteMode & 0x00003ffe) >> 1; /* preserve bits 1-13 only */
 
-		mode->color_model = rosprite_rgb;
+		mode.color_model = rosprite_rgb;
 		switch (spriteType) {
 		case 1:
-			mode->colorbpp = 1; break;
+			mode.colorbpp = 1; break;
 		case 2:
-			mode->colorbpp = 2; break;
+			mode.colorbpp = 2; break;
 		case 3:
-			mode->colorbpp = 4; break;
+			mode.colorbpp = 4; break;
 		case 4:
-			mode->colorbpp = 8; break;
+			mode.colorbpp = 8; break;
 		case 5:
-			mode->colorbpp = 16; break;
+			mode.colorbpp = 16; break;
 		case 6:
-			mode->colorbpp = 32; break;
+			mode.colorbpp = 32; break;
 		case 7:
-			mode->colorbpp = 32;
-			mode->color_model = rosprite_cmyk;
+			mode.colorbpp = 32;
+			mode.color_model = rosprite_cmyk;
 			break;
 		case 8:
-			mode->colorbpp = 24; break;
+			mode.colorbpp = 24; break;
 		default:
 			assert(false);
 		}
 	} else {
 		/* clone station mode and return */
 		assert(spriteMode < 256); /* don't think you can have modes over 255? */
-		memcpy(mode, &(oldmodes[spriteMode]), sizeof(struct rosprite_mode));
+		assert(oldmodes[spriteMode].colorbpp > 0); 
+
+		mode = oldmodes[spriteMode];
 	}
+
+	/* illegal mode check */
+	assert(mode.colorbpp > 0);
+	assert(mode.xdpi > 0);
+	assert(mode.ydpi > 0);
 
 	return mode;
 }
 
-uint32_t sprite_palette_lookup(struct rosprite* sprite, uint32_t pixel)
+static uint32_t sprite_palette_lookup(struct rosprite* sprite, uint32_t pixel)
 {
 	uint32_t translated_pixel;
 	 /* because we're dealing with 8bpp or less */
@@ -271,7 +278,7 @@ uint32_t sprite_palette_lookup(struct rosprite* sprite, uint32_t pixel)
 		assert(pixel <= sprite->palettesize); /* TODO: what to do if your color depth is bigger than palette? */
 		translated_pixel = sprite->palette[pixel];
 	} else {
-		switch (sprite->mode->colorbpp) {
+		switch (sprite->mode.colorbpp) {
 		case 8:
 			assert(pixel < 256);
 			translated_pixel = sprite_8bpp_palette[pixel];
@@ -316,7 +323,7 @@ static inline uint32_t sprite_cmyk_to_rgb(uint32_t cmyk)
 }
 
 /* TODO: could make static inline? */
-uint32_t sprite_upscale_color(uint32_t pixel, struct rosprite_mode* mode, bool* has_alpha_pixel_data)
+static uint32_t sprite_upscale_color(uint32_t pixel, struct rosprite_mode* mode, bool* has_alpha_pixel_data)
 {
 	switch (mode->colorbpp) {
 	case 32:
@@ -369,23 +376,23 @@ uint32_t sprite_upscale_color(uint32_t pixel, struct rosprite_mode* mode, bool* 
 	}
 }
 
-void sprite_fix_alpha(uint32_t* image, uint32_t pixels)
+static inline void sprite_fix_alpha(uint32_t* image, uint32_t pixels)
 {
 	for (uint32_t i = 0; i <= pixels; i++) {
 		image[i] = image[i] & 0xffffff00;
 	}
 }
 
-struct rosprite_mask_state* sprite_init_mask_state(struct rosprite* sprite, struct rosprite_header* header, uint8_t* mask)
+static struct rosprite_mask_state* sprite_init_mask_state(struct rosprite* sprite, struct rosprite_header* header, uint8_t* mask)
 {
 	struct rosprite_mask_state* mask_state = malloc(sizeof(struct rosprite_mask_state));
 
 	mask_state->x = header->first_used_bit;
 	mask_state->y = 0;
 	mask_state->first_used_bit = header->first_used_bit;
-	mask_state->row_max_bit = sprite->width * sprite->mode->mask_width;
+	mask_state->row_max_bit = sprite->width * sprite->mode.mask_width;
 	mask_state->height = sprite->height;
-	mask_state->bpp = sprite->mode->mask_width;
+	mask_state->bpp = sprite->mode.mask_width;
 	mask_state->current_word = BTUINT(mask);
 	mask_state->current_byte_index = 4;
 
@@ -395,7 +402,7 @@ struct rosprite_mask_state* sprite_init_mask_state(struct rosprite* sprite, stru
 /* Get the next mask byte.
  * Mask of 0xff denotes 100% opaque, 0x00 denotes 100% transparent
  */
-uint32_t sprite_next_mask_pixel(uint8_t* mask, struct rosprite_mask_state* mask_state)
+static uint32_t sprite_next_mask_pixel(uint8_t* mask, struct rosprite_mask_state* mask_state)
 {
 	/* a 1bpp mask (for new mode sprites), each row is word aligned (therefore potential righthand wastage */	
 	const uint32_t bitmask = (1 << mask_state->bpp) - 1;
@@ -429,7 +436,7 @@ uint32_t sprite_next_mask_pixel(uint8_t* mask, struct rosprite_mask_state* mask_
 	return pixel;
 }
 
-void sprite_load_high_color(uint8_t* image_in, uint8_t* mask, struct rosprite* sprite, struct rosprite_header* header)
+static void sprite_load_high_color(uint8_t* image_in, uint8_t* mask, struct rosprite* sprite, struct rosprite_header* header)
 {
 	struct rosprite_mask_state* mask_state = NULL;
 	if (sprite->has_mask) mask_state = sprite_init_mask_state(sprite, header, mask);
@@ -437,7 +444,7 @@ void sprite_load_high_color(uint8_t* image_in, uint8_t* mask, struct rosprite* s
 	sprite->image = malloc(sprite->width * sprite->height * 4); /* all image data is 32bpp going out */
 
 	uint32_t currentByteIndex = 0;
-	const uint32_t bpp = sprite->mode->colorbpp;
+	const uint32_t bpp = sprite->mode.colorbpp;
 	const uint32_t bytesPerPixel = bpp / 8;
 	const uint32_t row_max_bit = header->width_words * 32 - (31 - header->last_used_bit); /* Last used bit in row */
 
@@ -456,7 +463,7 @@ void sprite_load_high_color(uint8_t* image_in, uint8_t* mask, struct rosprite* s
 			}
 			
 			bool old_has_alpha = has_alpha_pixel_data;
-			pixel = sprite_upscale_color(pixel, sprite->mode, &has_alpha_pixel_data);
+			pixel = sprite_upscale_color(pixel, &(sprite->mode), &has_alpha_pixel_data);
 			if (old_has_alpha != has_alpha_pixel_data) {
 				sprite_fix_alpha(sprite->image, (y * sprite->width) + x_pixels - 1);
 			}
@@ -478,14 +485,14 @@ void sprite_load_high_color(uint8_t* image_in, uint8_t* mask, struct rosprite* s
 	if (sprite->has_mask) free(mask_state);
 }
 
-void sprite_load_low_color(uint8_t* image_in, uint8_t* mask, struct rosprite* sprite, struct rosprite_header* header)
+static void sprite_load_low_color(uint8_t* image_in, uint8_t* mask, struct rosprite* sprite, struct rosprite_header* header)
 {
 	struct rosprite_mask_state* mask_state = NULL;
 	if (sprite->has_mask) mask_state = sprite_init_mask_state(sprite, header, mask);
 
 	sprite->image = malloc(sprite->width * sprite->height * 4); /* all image data is 32bpp going out */
 
-	const uint32_t bpp = sprite->mode->colorbpp;
+	const uint32_t bpp = sprite->mode.colorbpp;
 	const uint32_t row_max_bit = header->width_words * 32 - (31 - header->last_used_bit); /* Last used bit in row */
 	const uint32_t bitmask = (1 << bpp) - 1; /* creates a mask of 1s that is bpp bits wide */
 
@@ -548,15 +555,12 @@ struct rosprite* sprite_load_sprite(FILE* spritefile)
 	uint32_t spriteModeWord = sprite_read_word(spritefile);
 
 	sprite->mode = sprite_get_mode(spriteModeWord);
-	assert(sprite->mode->colorbpp > 0);
-	assert(sprite->mode->xdpi > 0);
-	assert(sprite->mode->ydpi > 0);
 
 	/* TODO left-hand wastage */
 	
-	assert((header->last_used_bit + 1) % sprite->mode->colorbpp == 0);
+	assert((header->last_used_bit + 1) % sprite->mode.colorbpp == 0);
 	/*assert(header->width_words % sprite->mode->colorbpp == 0);*/
-	sprite->width = (header->width_words * 32 - header->first_used_bit - (31 - header->last_used_bit)) / sprite->mode->colorbpp;
+	sprite->width = (header->width_words * 32 - header->first_used_bit - (31 - header->last_used_bit)) / sprite->mode.colorbpp;
 
 	sprite->palettesize     = imageOffset - 44;
 	sprite->has_palette     = (sprite->palettesize > 0);
@@ -606,7 +610,7 @@ struct rosprite* sprite_load_sprite(FILE* spritefile)
 	/* sanity check image_size */
 	assert((header->width_words) * 4 * (sprite->height) == header->image_size);
 	/* TODO: sanity check mask_size */
-	if (sprite->mode->colorbpp > 8) {
+	if (sprite->mode.colorbpp > 8) {
 		sprite_load_high_color(image, mask, sprite, header);
 	} else {
 		sprite_load_low_color(image, mask, sprite, header);
@@ -648,7 +652,6 @@ void rosprite_destroy_sprite_area(struct rosprite_area* sprite_area)
 {
 	for (uint32_t i = 0; i < sprite_area->sprite_count; i++) {
 		struct rosprite* sprite = sprite_area->sprites[i];
-		free(sprite->mode);
 		if (sprite->has_palette) free(sprite->palette);
 		free(sprite->image);
 		free(sprite);

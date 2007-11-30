@@ -35,7 +35,7 @@ struct rosprite_palette {
 
 struct rosprite {
 	unsigned char name[13]; /* last byte for 0 terminator */
-	struct rosprite_mode* mode;
+	struct rosprite_mode mode;
 	bool has_mask;
 	bool has_palette;
 	uint32_t palettesize; /* in number of entries (each entry is a word) */

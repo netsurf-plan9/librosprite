@@ -67,10 +67,10 @@ int main(int argc, char *argv[])
 	for (uint32_t i = 0; i < sprite_area->sprite_count; i++) {
 		struct rosprite* sprite = sprite_area->sprites[i];
 		printf("\nname %s\n", sprite->name);
-		printf("color_model %s\n", sprite->mode->color_model == rosprite_rgb ? "RGB" : "CMYK");
-		printf("colorbpp %u\n", sprite->mode->colorbpp);
-		printf("xdpi %u\n", sprite->mode->xdpi);
-		printf("ydpi %u\n", sprite->mode->ydpi);
+		printf("color_model %s\n", sprite->mode.color_model == rosprite_rgb ? "RGB" : "CMYK");
+		printf("colorbpp %u\n", sprite->mode.colorbpp);
+		printf("xdpi %u\n", sprite->mode.xdpi);
+		printf("ydpi %u\n", sprite->mode.ydpi);
 		printf("width %u px\n", sprite->width);
 		printf("height %u px\n", sprite->height);
 	
@@ -78,8 +78,8 @@ int main(int argc, char *argv[])
 		if (sprite->has_palette) printf("paletteSize %u\n", sprite->palettesize);
 
 		printf("hasMask %s\n", sprite->has_mask ? "YES" : "NO");
-		if (sprite->has_mask) printf("mask_width %u\n", sprite->mode->mask_width);
-		if (sprite->has_mask) printf("maskbpp %u\n", sprite->mode->maskbpp);
+		if (sprite->has_mask) printf("mask_width %u\n", sprite->mode.mask_width);
+		if (sprite->has_mask) printf("maskbpp %u\n", sprite->mode.maskbpp);
 
 		sdl_blank(screen);
 
