@@ -17,8 +17,6 @@ int main(int argc, char *argv[])
 		printf("Can't load palettefile %s\n", filename);
 		exit(EXIT_FAILURE);
 	}
-
-	rosprite_init();
 	
 	struct rosprite_palette* palette = rosprite_load_palette(palettefile);
 

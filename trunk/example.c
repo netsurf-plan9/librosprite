@@ -54,7 +54,6 @@ int main(int argc, char *argv[])
 	}
 
 	printf("Loading %s\n", filename);
-	rosprite_init();
 
 	struct rosprite_area* sprite_area = rosprite_load_file(spritefile);
 	printf("sprite_count %u\n", sprite_area->sprite_count);

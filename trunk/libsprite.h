@@ -46,7 +46,6 @@ struct rosprite {
 	uint32_t* image; /* image data in 0xRRGGBBAA words */
 };
 
-void rosprite_init(void);
 struct rosprite_area* rosprite_load_file(FILE* f);
 void rosprite_destroy_sprite_area(struct rosprite_area *);
 

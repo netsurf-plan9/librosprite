@@ -35,7 +35,62 @@ struct rosprite_mask_state {
 	uint32_t bpp;
 };
 
-static struct rosprite_mode oldmodes[256];
+static struct rosprite_mode oldmodes[] = {
+/*0*/{ .colorbpp = 1, .maskbpp = 1, .mask_width = 1, .xdpi = 90, .ydpi = 45, .color_model = rosprite_rgb },
+/*1*/{ .colorbpp = 2, .maskbpp = 1, .mask_width = 2, .xdpi = 45, .ydpi = 45, .color_model = rosprite_rgb },
+/*2*/{ .colorbpp = 4, .maskbpp = 1, .mask_width = 4, .xdpi = 22, .ydpi = 45, .color_model = rosprite_rgb },
+
+/*3*/{ .colorbpp = 0, .maskbpp = 0, .mask_width = 0, .xdpi = 0,  .ydpi = 0,  .color_model = rosprite_rgb },
+
+/*4*/{ .colorbpp = 1, .maskbpp = 1, .mask_width = 1, .xdpi = 45, .ydpi = 45, .color_model = rosprite_rgb },
+/*5*/{ .colorbpp = 2, .maskbpp = 1, .mask_width = 2, .xdpi = 22, .ydpi = 45, .color_model = rosprite_rgb },
+
+/*6*/{ .colorbpp = 0, .maskbpp = 0, .mask_width = 0, .xdpi = 0,  .ydpi = 0,  .color_model = rosprite_rgb },
+/*7*/{ .colorbpp = 0, .maskbpp = 0, .mask_width = 0, .xdpi = 0,  .ydpi = 0,  .color_model = rosprite_rgb },
+
+/*8*/{ .colorbpp = 2, .maskbpp = 1, .mask_width = 2, .xdpi = 90, .ydpi = 45, .color_model = rosprite_rgb },
+/*9*/{ .colorbpp = 4, .maskbpp = 1, .mask_width = 4, .xdpi = 45, .ydpi = 45, .color_model = rosprite_rgb },
+/*10*/{.colorbpp = 8, .maskbpp = 1, .mask_width = 8, .xdpi = 22, .ydpi = 45, .color_model = rosprite_rgb },
+/*11*/{.colorbpp = 2, .maskbpp = 1, .mask_width = 2, .xdpi = 90, .ydpi = 45, .color_model = rosprite_rgb },
+/*12*/{.colorbpp = 4, .maskbpp = 1, .mask_width = 4, .xdpi = 90, .ydpi = 45, .color_model = rosprite_rgb },
+/*13*/{.colorbpp = 8, .maskbpp = 1, .mask_width = 8, .xdpi = 45, .ydpi = 45, .color_model = rosprite_rgb },
+/*14*/{.colorbpp = 4, .maskbpp = 1, .mask_width = 4, .xdpi = 90, .ydpi = 45, .color_model = rosprite_rgb },
+/*15*/{.colorbpp = 8, .maskbpp = 1, .mask_width = 8, .xdpi = 90, .ydpi = 45, .color_model = rosprite_rgb },
+/*16*/{.colorbpp = 4, .maskbpp = 1, .mask_width = 4, .xdpi = 90, .ydpi = 45, .color_model = rosprite_rgb },
+/*17*/{.colorbpp = 4, .maskbpp = 1, .mask_width = 4, .xdpi = 90, .ydpi = 45, .color_model = rosprite_rgb },
+/*18*/{.colorbpp = 1, .maskbpp = 1, .mask_width = 1, .xdpi = 90, .ydpi = 90, .color_model = rosprite_rgb },
+/*19*/{.colorbpp = 2, .maskbpp = 1, .mask_width = 2, .xdpi = 90, .ydpi = 90, .color_model = rosprite_rgb },
+/*20*/{.colorbpp = 4, .maskbpp = 1, .mask_width = 4, .xdpi = 90, .ydpi = 90, .color_model = rosprite_rgb },
+/*21*/{.colorbpp = 8, .maskbpp = 1, .mask_width = 8, .xdpi = 90, .ydpi = 90, .color_model = rosprite_rgb },
+/*22*/{.colorbpp = 4, .maskbpp = 1, .mask_width = 4, .xdpi =180, .ydpi = 90, .color_model = rosprite_rgb },
+/*23*/{.colorbpp = 1, .maskbpp = 1, .mask_width = 1, .xdpi = 90, .ydpi = 90, .color_model = rosprite_rgb },
+/*24*/{.colorbpp = 8, .maskbpp = 1, .mask_width = 8, .xdpi = 90, .ydpi = 45, .color_model = rosprite_rgb },
+/*25*/{.colorbpp = 1, .maskbpp = 1, .mask_width = 1, .xdpi = 90, .ydpi = 90, .color_model = rosprite_rgb },
+/*26*/{.colorbpp = 2, .maskbpp = 1, .mask_width = 2, .xdpi = 90, .ydpi = 90, .color_model = rosprite_rgb },
+/*27*/{.colorbpp = 4, .maskbpp = 1, .mask_width = 4, .xdpi = 90, .ydpi = 90, .color_model = rosprite_rgb },
+/*28*/{.colorbpp = 8, .maskbpp = 1, .mask_width = 8, .xdpi = 90, .ydpi = 90, .color_model = rosprite_rgb },
+/*29*/{.colorbpp = 1, .maskbpp = 1, .mask_width = 1, .xdpi = 90, .ydpi = 90, .color_model = rosprite_rgb },
+/*30*/{.colorbpp = 2, .maskbpp = 1, .mask_width = 2, .xdpi = 90, .ydpi = 90, .color_model = rosprite_rgb },
+/*31*/{.colorbpp = 4, .maskbpp = 1, .mask_width = 4, .xdpi = 90, .ydpi = 90, .color_model = rosprite_rgb },
+/*32*/{.colorbpp = 8, .maskbpp = 1, .mask_width = 8, .xdpi = 90, .ydpi = 90, .color_model = rosprite_rgb },
+/*33*/{.colorbpp = 1, .maskbpp = 1, .mask_width = 1, .xdpi = 90, .ydpi = 45, .color_model = rosprite_rgb },
+/*34*/{.colorbpp = 2, .maskbpp = 1, .mask_width = 2, .xdpi = 90, .ydpi = 45, .color_model = rosprite_rgb },
+/*35*/{.colorbpp = 4, .maskbpp = 1, .mask_width = 4, .xdpi = 90, .ydpi = 45, .color_model = rosprite_rgb },
+/*36*/{.colorbpp = 8, .maskbpp = 1, .mask_width = 8, .xdpi = 90, .ydpi = 45, .color_model = rosprite_rgb },
+/*37*/{.colorbpp = 1, .maskbpp = 1, .mask_width = 1, .xdpi = 90, .ydpi = 45, .color_model = rosprite_rgb },
+/*38*/{.colorbpp = 2, .maskbpp = 1, .mask_width = 2, .xdpi = 90, .ydpi = 45, .color_model = rosprite_rgb },
+/*39*/{.colorbpp = 4, .maskbpp = 1, .mask_width = 4, .xdpi = 90, .ydpi = 45, .color_model = rosprite_rgb },
+/*40*/{.colorbpp = 8, .maskbpp = 1, .mask_width = 8, .xdpi = 90, .ydpi = 45, .color_model = rosprite_rgb },
+/*41*/{.colorbpp = 1, .maskbpp = 1, .mask_width = 1, .xdpi = 90, .ydpi = 45, .color_model = rosprite_rgb },
+/*42*/{.colorbpp = 2, .maskbpp = 1, .mask_width = 2, .xdpi = 90, .ydpi = 45, .color_model = rosprite_rgb },
+/*43*/{.colorbpp = 4, .maskbpp = 1, .mask_width = 4, .xdpi = 90, .ydpi = 45, .color_model = rosprite_rgb },
+/*44*/{.colorbpp = 1, .maskbpp = 1, .mask_width = 1, .xdpi = 90, .ydpi = 45, .color_model = rosprite_rgb },
+/*45*/{.colorbpp = 2, .maskbpp = 1, .mask_width = 2, .xdpi = 90, .ydpi = 45, .color_model = rosprite_rgb },
+/*46*/{.colorbpp = 4, .maskbpp = 1, .mask_width = 4, .xdpi = 90, .ydpi = 45, .color_model = rosprite_rgb },
+/*47*/{.colorbpp = 8, .maskbpp = 1, .mask_width = 8, .xdpi = 45, .ydpi = 45, .color_model = rosprite_rgb },
+/*48*/{.colorbpp = 4, .maskbpp = 1, .mask_width = 4, .xdpi = 45, .ydpi = 90, .color_model = rosprite_rgb },
+/*49*/{.colorbpp = 8, .maskbpp = 1, .mask_width = 8, .xdpi = 45, .ydpi = 90, .color_model = rosprite_rgb }
+};
 
 /* table for converting a 5bit channel into an 8bit channel (used for 16bpp to 32bpp conversion) */
 static const uint8_t sprite_16bpp_translate[] = {
@@ -126,71 +181,6 @@ static const uint32_t sprite_8bpp_palette[] = {
 0x88ccccff, 0x99ddddff, 0xaaeeeeff, 0xbbffffff,
 0xccccccff, 0xddddddff, 0xeeeeeeff, 0xffffffff
 };
-
-void rosprite_init(void)
-{
-	for (uint32_t i = 0; i < 256; i++) {
-		oldmodes[i].colorbpp = 0;
-		oldmodes[i].maskbpp  = 1;
-		oldmodes[i].xdpi     = 0;
-		oldmodes[i].ydpi     = 0;
-	}
-
-	/* TODO: push this into a text file? */
-	/* TODO: check these DPIs */
-	oldmodes[0].colorbpp  = 1; oldmodes[0].xdpi  = 90; oldmodes[0].ydpi  = 45;
-	oldmodes[1].colorbpp  = 2; oldmodes[1].xdpi  = 45; oldmodes[1].ydpi  = 45;
-	oldmodes[2].colorbpp  = 4; oldmodes[2].xdpi  = 22; oldmodes[2].ydpi  = 45;
-	oldmodes[4].colorbpp  = 1; oldmodes[4].xdpi  = 45; oldmodes[4].ydpi  = 45;
-	oldmodes[5].colorbpp  = 2; oldmodes[5].xdpi  = 22; oldmodes[5].ydpi  = 45;
-	oldmodes[8].colorbpp  = 2; oldmodes[8].xdpi  = 90; oldmodes[8].ydpi  = 45;
-	oldmodes[9].colorbpp  = 4; oldmodes[9].xdpi  = 45; oldmodes[9].ydpi  = 45;
-	oldmodes[10].colorbpp = 8; oldmodes[10].xdpi = 22; oldmodes[10].ydpi = 45;
-	oldmodes[11].colorbpp = 2; oldmodes[11].xdpi = 90; oldmodes[11].ydpi = 45;
-	oldmodes[12].colorbpp = 4; oldmodes[12].xdpi = 90; oldmodes[12].ydpi = 45;
-	oldmodes[13].colorbpp = 8; oldmodes[13].xdpi = 45; oldmodes[13].ydpi = 45;
-	oldmodes[14].colorbpp = 4; oldmodes[14].xdpi = 90; oldmodes[14].ydpi = 45;
-	oldmodes[15].colorbpp = 8; oldmodes[15].xdpi = 90; oldmodes[15].ydpi = 45;
-	oldmodes[16].colorbpp = 4; oldmodes[16].xdpi = 90; oldmodes[16].ydpi = 45;
-	oldmodes[17].colorbpp = 4; oldmodes[17].xdpi = 90; oldmodes[17].ydpi = 45;
-	oldmodes[18].colorbpp = 1; oldmodes[18].xdpi = 90; oldmodes[18].ydpi = 90;
-	oldmodes[19].colorbpp = 2; oldmodes[19].xdpi = 90; oldmodes[19].ydpi = 90;
-	oldmodes[20].colorbpp = 4; oldmodes[20].xdpi = 90; oldmodes[20].ydpi = 90;
-	oldmodes[21].colorbpp = 8; oldmodes[21].xdpi = 90; oldmodes[21].ydpi = 90;
-	oldmodes[22].colorbpp = 4; oldmodes[22].xdpi =180; oldmodes[22].ydpi = 90;
-	oldmodes[23].colorbpp = 1; oldmodes[23].xdpi = 90; oldmodes[23].ydpi = 90;
-	oldmodes[24].colorbpp = 8; oldmodes[24].xdpi = 90; oldmodes[24].ydpi = 45;
-	oldmodes[25].colorbpp = 1; oldmodes[25].xdpi = 90; oldmodes[25].ydpi = 90;
-	oldmodes[26].colorbpp = 2; oldmodes[26].xdpi = 90; oldmodes[26].ydpi = 90;
-	oldmodes[27].colorbpp = 4; oldmodes[27].xdpi = 90; oldmodes[27].ydpi = 90;
-	oldmodes[28].colorbpp = 8; oldmodes[28].xdpi = 90; oldmodes[28].ydpi = 90;
-	oldmodes[29].colorbpp = 1; oldmodes[29].xdpi = 90; oldmodes[29].ydpi = 90;
-	oldmodes[30].colorbpp = 2; oldmodes[30].xdpi = 90; oldmodes[30].ydpi = 90;
-	oldmodes[31].colorbpp = 4; oldmodes[31].xdpi = 90; oldmodes[31].ydpi = 90;
-	oldmodes[32].colorbpp = 8; oldmodes[32].xdpi = 90; oldmodes[32].ydpi = 90;
-	oldmodes[33].colorbpp = 1; oldmodes[33].xdpi = 90; oldmodes[33].ydpi = 45;
-	oldmodes[34].colorbpp = 2; oldmodes[34].xdpi = 90; oldmodes[34].ydpi = 45;
-	oldmodes[35].colorbpp = 4; oldmodes[35].xdpi = 90; oldmodes[35].ydpi = 45;
-	oldmodes[36].colorbpp = 8; oldmodes[36].xdpi = 90; oldmodes[36].ydpi = 45;
-	oldmodes[37].colorbpp = 1; oldmodes[37].xdpi = 90; oldmodes[37].ydpi = 45;
-	oldmodes[38].colorbpp = 2; oldmodes[38].xdpi = 90; oldmodes[38].ydpi = 45;
-	oldmodes[39].colorbpp = 4; oldmodes[39].xdpi = 90; oldmodes[39].ydpi = 45;
-	oldmodes[40].colorbpp = 8; oldmodes[40].xdpi = 90; oldmodes[40].ydpi = 45;
-	oldmodes[41].colorbpp = 1; oldmodes[41].xdpi = 90; oldmodes[41].ydpi = 45;
-	oldmodes[42].colorbpp = 2; oldmodes[42].xdpi = 90; oldmodes[42].ydpi = 45;
-	oldmodes[43].colorbpp = 4; oldmodes[43].xdpi = 90; oldmodes[43].ydpi = 45;
-	oldmodes[44].colorbpp = 1; oldmodes[44].xdpi = 90; oldmodes[44].ydpi = 45;
-	oldmodes[45].colorbpp = 2; oldmodes[45].xdpi = 90; oldmodes[45].ydpi = 45;
-	oldmodes[46].colorbpp = 4; oldmodes[46].xdpi = 90; oldmodes[46].ydpi = 45;
-	oldmodes[47].colorbpp = 8; oldmodes[47].xdpi = 45; oldmodes[47].ydpi = 45;
-	oldmodes[48].colorbpp = 4; oldmodes[48].xdpi = 45; oldmodes[48].ydpi = 90;
-	oldmodes[49].colorbpp = 8; oldmodes[49].xdpi = 45; oldmodes[49].ydpi = 90;
-
-	/* old modes have the same mask bpp as their colour bpp -- PRM1-781 */
-	for (uint32_t i = 0; i < 256; i++) {
-		oldmodes[i].mask_width = oldmodes[i].colorbpp;
-	}
-}
 
 uint32_t sprite_read_word(FILE* stream)
 {
