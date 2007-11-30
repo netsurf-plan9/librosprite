@@ -2,6 +2,7 @@
 #define ROSPRITE_H
 
 #include <stdint.h>
+#include <stdio.h>
 #include <stdbool.h>
 
 typedef enum { rosprite_rgb, rosprite_cmyk } rosprite_color_model;

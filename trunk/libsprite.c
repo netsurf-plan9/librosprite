@@ -521,8 +521,6 @@ static void sprite_load_low_color(uint8_t* image_in, uint8_t* mask, struct rospr
 			currentword = BTUINT((image_in + current_byte_index));
 			current_byte_index += 4;
 		}
-
-		printf("\n");
 	}
 
 	if (sprite->has_mask) free(mask_state);
