@@ -7,6 +7,10 @@
 
 typedef enum { rosprite_rgb, rosprite_cmyk } rosprite_color_model;
 
+typedef int (*reader)(uint8_t* buf, size_t count, void* ctx);
+
+struct rosprite_file_context;
+
 struct rosprite_area {
 	uint32_t extension_size; /* size of extension_words in bytes */
 	uint8_t* extension_words;
@@ -46,10 +50,14 @@ struct rosprite {
 	uint32_t* image; /* image data in 0xRRGGBBAA words */
 };
 
-struct rosprite_area* rosprite_load_file(FILE* f);
+struct rosprite_file_context* rosprite_create_file_context(FILE* f);
+void rosprite_destroy_file_context(struct rosprite_file_context* ctx);
+int rosprite_file_reader(uint8_t* buf, size_t count, void* ctx);
+
+struct rosprite_area* rosprite_load_file(reader reader, void* ctx);
 void rosprite_destroy_sprite_area(struct rosprite_area *);
 
-struct rosprite_palette* rosprite_load_palette(FILE* f);
+struct rosprite_palette* rosprite_load_palette(reader reader, void* ctx);
 void rosprite_destroy_palette(struct rosprite_palette *);
 
 
