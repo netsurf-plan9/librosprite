@@ -5,7 +5,7 @@
 #include <stdbool.h>
 #include <string.h>
 
-#include "libsprite.h"
+#include "librosprite.h"
 
 /* reads four bytes, 00, 11, 22 and 33, of a byte array b to give 0x33221100 */
 #define BTUINT(b) (b[0] | (b[1] << 8) | (b[2] << 16) | (b[3] << 24))

@@ -11,14 +11,14 @@ CFLAGS = -Wall -Wextra -Wundef -Wpointer-arith -Wcast-align \
 LDFLAGS = -L./
 #-Wmissing-declarations -Wmissing-prototypes 
 
-example: libsprite.a example.o
-	${LD} -g -o $@ example.o ${LDFLAGS} -lsprite -lSDL
+example: librosprite.a example.o
+	${LD} -g -o $@ example.o ${LDFLAGS} -lrosprite -lSDL
 
-palette2c: libsprite.a palette2c.o
-	${LD} -g -o $@ palette2c.o ${LDFLAGS} -lsprite
+palette2c: librosprite.a palette2c.o
+	${LD} -g -o $@ palette2c.o ${LDFLAGS} -lrosprite
 
-libsprite.a: libsprite.o
-	${AR} ${ARFLAGS} libsprite.a libsprite.o
+librosprite.a: librosprite.o
+	${AR} ${ARFLAGS} librosprite.a librosprite.o
 
 %.o: %.c
 	${CC} -c -g ${CFLAGS} -o $@ $<

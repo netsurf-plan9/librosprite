@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <SDL/SDL.h>
 
-#include "libsprite.h"
+#include "librosprite.h"
 
 /* color is 0xrrggbbaa */
 void sdl_draw_pixel(SDL_Surface* surface, uint32_t x, uint32_t y, uint32_t color)
