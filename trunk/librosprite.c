@@ -40,6 +40,13 @@ struct rosprite_file_context {
 	FILE* f;
 };
 
+struct rosprite_mem_context {
+	uint8_t* base;
+	unsigned long offset;
+	bool known_size;
+	unsigned long size;
+};
+
 static const struct rosprite_mode oldmodes[] = {
 /*0*/{ .colorbpp = 1, .maskbpp = 1, .mask_width = 1, .xdpi = 90, .ydpi = 45, .color_model = rosprite_rgb },
 /*1*/{ .colorbpp = 2, .maskbpp = 1, .mask_width = 2, .xdpi = 45, .ydpi = 45, .color_model = rosprite_rgb },
@@ -202,6 +209,29 @@ void rosprite_destroy_file_context(struct rosprite_file_context* ctx)
 int rosprite_file_reader(uint8_t* buf, size_t count, void* ctx)
 {
 	return fread(buf, 1 /*size*/, count, ((struct rosprite_file_context*) ctx)->f);
+}
+
+struct rosprite_mem_context* rosprite_create_mem_context(uint8_t* p, unsigned long total_size)
+{
+	struct rosprite_mem_context* ctx = malloc(sizeof(struct rosprite_mem_context));
+	ctx->base = p;
+	ctx->offset = 0;
+	ctx->known_size = true;
+	ctx->size = total_size;
+	return ctx;
+}
+
+void rosprite_destroy_mem_context(struct rosprite_mem_context* ctx)
+{
+	free(ctx);
+}
+
+int rosprite_mem_reader(uint8_t* buf, size_t count, void* ctx)
+{
+	struct rosprite_mem_context* memctx = (struct rosprite_mem_context*) ctx;
+	buf = memctx->base + memctx->offset;
+	memctx->offset += count;
+	return count; // TODO: assert size bounds, return real count
 }
 
 /* TODO: get rid of this method */
