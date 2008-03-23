@@ -54,7 +54,7 @@ struct rosprite_file_context* rosprite_create_file_context(FILE* f);
 void rosprite_destroy_file_context(struct rosprite_file_context* ctx);
 int rosprite_file_reader(uint8_t* buf, size_t count, void* ctx);
 
-struct rosprite_area* rosprite_load_file(reader reader, void* ctx);
+struct rosprite_area* rosprite_load(reader reader, void* ctx);
 void rosprite_destroy_sprite_area(struct rosprite_area *);
 
 struct rosprite_palette* rosprite_load_palette(reader reader, void* ctx);

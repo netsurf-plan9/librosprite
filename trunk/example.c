@@ -57,7 +57,7 @@ int main(int argc, char *argv[])
 
 	printf("Loading %s\n", filename);
 
-	struct rosprite_area* sprite_area = rosprite_load_file(rosprite_file_reader, ctx);
+	struct rosprite_area* sprite_area = rosprite_load(rosprite_file_reader, ctx);
 	printf("sprite_count %u\n", sprite_area->sprite_count);
 	printf("extension_size %u\n", sprite_area->extension_size);
 

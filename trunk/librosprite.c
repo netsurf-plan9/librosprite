@@ -618,7 +618,7 @@ struct rosprite* sprite_load_sprite(reader reader, void* ctx)
 	return sprite;
 }
 
-struct rosprite_area* rosprite_load_file(reader reader, void* ctx)
+struct rosprite_area* rosprite_load(reader reader, void* ctx)
 {
 	struct rosprite_area* sprite_area = malloc(sizeof(struct rosprite_area));
 
