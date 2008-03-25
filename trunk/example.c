@@ -55,6 +55,38 @@ int load_file_to_memory(const char *filename, uint8_t **result)
 	return size;
 }
 
+int create_file_context(char* filename, void** result)
+{
+	FILE *f = fopen(filename, "rb");
+	if (!f) {
+		*result = NULL;
+		return -1;
+	}
+
+	struct rosprite_file_context* ctx;
+	if (rosprite_create_file_context(f, &ctx) != ROSPRITE_OK) {
+		return -1;
+	}
+	*result = ctx;
+
+	return 0;
+}
+
+int create_mem_context(char* filename, void** result)
+{
+	uint8_t* content;
+
+	int size = load_file_to_memory(filename, &content);
+	if (size < 0) return -1;
+	struct rosprite_mem_context* ctx;	
+	if (rosprite_create_mem_context(content, size, &ctx) != ROSPRITE_OK) {
+		return -1;
+	}
+	*result = ctx;
+
+	return 0;
+}
+
 int main(int argc, char *argv[])
 {
 	if (argc < 2) {
@@ -69,21 +101,11 @@ int main(int argc, char *argv[])
 	atexit(SDL_Quit);
 
 	char* filename = argv[1];
-	uint8_t* content;
-
-	int size = load_file_to_memory(filename, &content);
-	if (size < 0) {
-		printf("Can't load spritefile %s\n", filename);
-		exit(EXIT_FAILURE);
-	} else {
-		printf("Loaded file of size %d into memory", size);
-	}
-
-	struct rosprite_mem_context* ctx = rosprite_create_mem_context(content, size);
-
+	void* ctx;
+	create_file_context(filename, &ctx);
 	printf("Loading %s\n", filename);
 
-	struct rosprite_area* sprite_area = rosprite_load(rosprite_mem_reader, ctx);
+	struct rosprite_area* sprite_area = rosprite_load(rosprite_file_reader, ctx);
 	printf("sprite_count %u\n", sprite_area->sprite_count);
 	printf("extension_size %u\n", sprite_area->extension_size);
 

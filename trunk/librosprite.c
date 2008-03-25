@@ -194,11 +194,14 @@ static const uint32_t sprite_8bpp_palette[] = {
 0xccccccff, 0xddddddff, 0xeeeeeeff, 0xffffffff
 };
 
-struct rosprite_file_context* rosprite_create_file_context(FILE* f)
+rosprite_error rosprite_create_file_context(FILE* f, struct rosprite_file_context** result)
 {
 	struct rosprite_file_context* ctx = malloc(sizeof(struct rosprite_file_context));
+	if (!ctx) return ROSPRITE_NOMEM;
 	ctx->f = f;
-	return ctx;
+	*result = ctx;
+
+	return ROSPRITE_OK;
 }
 
 void rosprite_destroy_file_context(struct rosprite_file_context* ctx)
@@ -211,14 +214,17 @@ int rosprite_file_reader(uint8_t* buf, size_t count, void* ctx)
 	return fread(buf, 1 /*size*/, count, ((struct rosprite_file_context*) ctx)->f);
 }
 
-struct rosprite_mem_context* rosprite_create_mem_context(uint8_t* p, unsigned long total_size)
+rosprite_error rosprite_create_mem_context(uint8_t* p, unsigned long total_size, struct rosprite_mem_context** result)
 {
 	struct rosprite_mem_context* ctx = malloc(sizeof(struct rosprite_mem_context));
+	if (!ctx) return ROSPRITE_NOMEM;
+ 
 	ctx->base = p;
 	ctx->offset = 0;
-	ctx->known_size = true;
 	ctx->size = total_size;
-	return ctx;
+	*result = ctx;
+ 
+	return ROSPRITE_OK;
 }
 
 void rosprite_destroy_mem_context(struct rosprite_mem_context* ctx)
@@ -229,22 +235,30 @@ void rosprite_destroy_mem_context(struct rosprite_mem_context* ctx)
 int rosprite_mem_reader(uint8_t* buf, size_t count, void* ctx)
 {
 	struct rosprite_mem_context* memctx = (struct rosprite_mem_context*) ctx;
-	buf = memctx->base + memctx->offset;
-	memctx->offset += count;
-	return count; // TODO: assert size bounds, return real count
-}
-
-/* TODO: get rid of this method */
-uint32_t sprite_read_word(reader reader, void* ctx)
-{
-	unsigned char b[4];
-	
-	if (reader(b, 4, ctx) < 4) {
-		printf("Unexpected EOF\n"); /* TODO, have better error handling, don't exit here */
-		exit(EXIT_FAILURE);
+	if (memctx->offset + count > memctx->size) {
+		return -1; // TODO: use enum
 	}
 
-	return BTUINT(b);
+	// if we're asked for more memory than the block contains, only copy as much as we can
+	size_t copy_size;
+	if ((memctx->offset + count) > memctx->size) {
+		copy_size = memctx->size - memctx->offset;
+	} else {
+		copy_size = count;
+	}
+	memcpy(buf, memctx->base + memctx->offset, count);
+	memctx->offset += count;
+	return copy_size; // TODO: assert size bounds, return real count
+}
+
+rosprite_error sprite_read_word(reader reader, void* ctx, uint32_t* result)
+{
+	unsigned char b[4];
+	if (reader(b, 4, ctx) < 4) {
+		return ROSPRITE_EOF;
+	}
+	*result = BTUINT(b);
+	return ROSPRITE_OK;
 }
 
 static struct rosprite_mode sprite_get_mode(uint32_t spriteMode)
@@ -560,7 +574,8 @@ static void sprite_load_low_color(uint8_t* image_in, uint8_t* mask, struct rospr
 
 struct rosprite* sprite_load_sprite(reader reader, void* ctx)
 {
-	uint32_t nextSpriteOffset = sprite_read_word(reader, ctx);
+	uint32_t nextSpriteOffset;
+	sprite_read_word(reader, ctx, &nextSpriteOffset);
 
 	struct rosprite* sprite = malloc(sizeof(struct rosprite));
 	struct rosprite_header* header = malloc(sizeof(struct rosprite_header));
@@ -568,16 +583,20 @@ struct rosprite* sprite_load_sprite(reader reader, void* ctx)
 	reader(sprite->name, 12, ctx);
 	sprite->name[12] = '\0';
 
-	header->width_words     = sprite_read_word(reader, ctx) + 1; /* file has width - 1 and height - 1 */
-	sprite->height          = sprite_read_word(reader, ctx) + 1;
-	header->first_used_bit  = sprite_read_word(reader, ctx); /* old format only (spriteType = 0) */
-	header->last_used_bit   = sprite_read_word(reader, ctx);
+	sprite_read_word(reader, ctx, &header->width_words); /* file has width - 1 and height - 1 */
+	header->width_words += 1;
+	sprite_read_word(reader, ctx, &(sprite->height));
+	sprite->height += 1;
+	sprite_read_word(reader, ctx, &(header->first_used_bit)); /* old format only (spriteType = 0) */
+	sprite_read_word(reader, ctx, &(header->last_used_bit));
 
-	uint32_t imageOffset    = sprite_read_word(reader, ctx);
+	uint32_t imageOffset;
+	sprite_read_word(reader, ctx, &imageOffset);
 	assert(imageOffset >= 44); /* should never be smaller than the size of the header) */
 
-	uint32_t maskOffset     = sprite_read_word(reader, ctx);
-	uint32_t spriteModeWord = sprite_read_word(reader, ctx);
+	uint32_t maskOffset, spriteModeWord;
+	sprite_read_word(reader, ctx, &maskOffset);
+	sprite_read_word(reader, ctx, &spriteModeWord);
 
 	sprite->mode = sprite_get_mode(spriteModeWord);
 
@@ -613,9 +632,10 @@ struct rosprite* sprite_load_sprite(reader reader, void* ctx)
 		 * PRM1-730
 		 */
 		for (uint32_t j = 0; j < paletteEntries; j++) {
-			uint32_t word1 = sprite_read_word(reader, ctx);
-			uint32_t word2 = sprite_read_word(reader, ctx);
-			assert(word1 == word2); /* TODO: if they aren't, START FLASHING */
+			uint32_t word1, word2;
+			sprite_read_word(reader, ctx, &word1);
+			sprite_read_word(reader, ctx, &word2);
+			assert(word1 == word2); /* if they aren't equal, flashing colours are desired, which we don't support */
 			
 			/* swap rr and bb parts -- PRM1-731 */
 			uint32_t entry = ((word1 & 0xff000000) >> 16) | (word1 & 0x00ff0000) | ((word1 & 0x0000ff00) << 16) | 0xff;
@@ -652,10 +672,11 @@ struct rosprite_area* rosprite_load(reader reader, void* ctx)
 {
 	struct rosprite_area* sprite_area = malloc(sizeof(struct rosprite_area));
 
-	sprite_area->sprite_count = sprite_read_word(reader, ctx);
+	sprite_read_word(reader, ctx, &(sprite_area->sprite_count));
 
-	uint32_t firstSpriteOffset = sprite_read_word(reader, ctx);
-	/*uint32_t firstFreeWordOffset = */sprite_read_word(reader, ctx); /* TODO: use this for some sanity checking? */
+	uint32_t firstSpriteOffset, firstFreeWordOffset;
+	sprite_read_word(reader, ctx, &firstSpriteOffset);
+	sprite_read_word(reader, ctx, &firstFreeWordOffset); /* TODO: use this for some sanity checking? */
 	sprite_area->extension_size = 16 - firstSpriteOffset;
 
 	sprite_area->extension_words = NULL;
