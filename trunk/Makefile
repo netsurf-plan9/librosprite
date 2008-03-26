@@ -1,6 +1,7 @@
 AR = ar
 CC = gcc
 LD = gcc
+DOXYGEN = doxygen
 ARFLAGS = -cru
 CFLAGS = -Wall -Wextra -Wundef -Wpointer-arith -Wcast-align \
 	-Wwrite-strings -Wstrict-prototypes \
@@ -9,7 +10,9 @@ CFLAGS = -Wall -Wextra -Wundef -Wpointer-arith -Wcast-align \
 	-Wmissing-format-attribute -Wunused -Wunreachable-code \
 	-Wformat=2 -Werror-implicit-function-declaration
 LDFLAGS = -L./
-#-Wmissing-declarations -Wmissing-prototypes 
+#-Wmissing-declarations -Wmissing-prototypes
+
+all: example palette2c
 
 example: librosprite.a example.o
 	${LD} -g -o $@ example.o ${LDFLAGS} -lrosprite -lSDL
@@ -23,5 +26,9 @@ librosprite.a: librosprite.o
 %.o: %.c
 	${CC} -c -g ${CFLAGS} -o $@ $<
 
+docs:
+	${DOXYGEN}
+
 clean:
 	rm -f $(wildcard *.o) $(wildcard *.a) example palette
+	rm -rf doc

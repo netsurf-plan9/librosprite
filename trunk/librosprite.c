@@ -50,60 +50,60 @@ struct rosprite_mem_context {
 };
 
 static const struct rosprite_mode oldmodes[] = {
-/*0*/{ .colorbpp = 1, .maskbpp = 1, .mask_width = 1, .xdpi = 90, .ydpi = 45, .color_model = rosprite_rgb },
-/*1*/{ .colorbpp = 2, .maskbpp = 1, .mask_width = 2, .xdpi = 45, .ydpi = 45, .color_model = rosprite_rgb },
-/*2*/{ .colorbpp = 4, .maskbpp = 1, .mask_width = 4, .xdpi = 22, .ydpi = 45, .color_model = rosprite_rgb },
+/*0*/{ .colorbpp = 1, .maskbpp = 1, .mask_width = 1, .xdpi = 90, .ydpi = 45, .color_model = ROSPRITE_RGB },
+/*1*/{ .colorbpp = 2, .maskbpp = 1, .mask_width = 2, .xdpi = 45, .ydpi = 45, .color_model = ROSPRITE_RGB },
+/*2*/{ .colorbpp = 4, .maskbpp = 1, .mask_width = 4, .xdpi = 22, .ydpi = 45, .color_model = ROSPRITE_RGB },
 
-/*3*/{ .colorbpp = 0, .maskbpp = 0, .mask_width = 0, .xdpi = 0,  .ydpi = 0,  .color_model = rosprite_rgb },
+/*3*/{ .colorbpp = 0, .maskbpp = 0, .mask_width = 0, .xdpi = 0,  .ydpi = 0,  .color_model = ROSPRITE_RGB },
 
-/*4*/{ .colorbpp = 1, .maskbpp = 1, .mask_width = 1, .xdpi = 45, .ydpi = 45, .color_model = rosprite_rgb },
-/*5*/{ .colorbpp = 2, .maskbpp = 1, .mask_width = 2, .xdpi = 22, .ydpi = 45, .color_model = rosprite_rgb },
+/*4*/{ .colorbpp = 1, .maskbpp = 1, .mask_width = 1, .xdpi = 45, .ydpi = 45, .color_model = ROSPRITE_RGB },
+/*5*/{ .colorbpp = 2, .maskbpp = 1, .mask_width = 2, .xdpi = 22, .ydpi = 45, .color_model = ROSPRITE_RGB },
 
-/*6*/{ .colorbpp = 0, .maskbpp = 0, .mask_width = 0, .xdpi = 0,  .ydpi = 0,  .color_model = rosprite_rgb },
-/*7*/{ .colorbpp = 0, .maskbpp = 0, .mask_width = 0, .xdpi = 0,  .ydpi = 0,  .color_model = rosprite_rgb },
+/*6*/{ .colorbpp = 0, .maskbpp = 0, .mask_width = 0, .xdpi = 0,  .ydpi = 0,  .color_model = ROSPRITE_RGB },
+/*7*/{ .colorbpp = 0, .maskbpp = 0, .mask_width = 0, .xdpi = 0,  .ydpi = 0,  .color_model = ROSPRITE_RGB },
 
-/*8*/{ .colorbpp = 2, .maskbpp = 1, .mask_width = 2, .xdpi = 90, .ydpi = 45, .color_model = rosprite_rgb },
-/*9*/{ .colorbpp = 4, .maskbpp = 1, .mask_width = 4, .xdpi = 45, .ydpi = 45, .color_model = rosprite_rgb },
-/*10*/{.colorbpp = 8, .maskbpp = 1, .mask_width = 8, .xdpi = 22, .ydpi = 45, .color_model = rosprite_rgb },
-/*11*/{.colorbpp = 2, .maskbpp = 1, .mask_width = 2, .xdpi = 90, .ydpi = 45, .color_model = rosprite_rgb },
-/*12*/{.colorbpp = 4, .maskbpp = 1, .mask_width = 4, .xdpi = 90, .ydpi = 45, .color_model = rosprite_rgb },
-/*13*/{.colorbpp = 8, .maskbpp = 1, .mask_width = 8, .xdpi = 45, .ydpi = 45, .color_model = rosprite_rgb },
-/*14*/{.colorbpp = 4, .maskbpp = 1, .mask_width = 4, .xdpi = 90, .ydpi = 45, .color_model = rosprite_rgb },
-/*15*/{.colorbpp = 8, .maskbpp = 1, .mask_width = 8, .xdpi = 90, .ydpi = 45, .color_model = rosprite_rgb },
-/*16*/{.colorbpp = 4, .maskbpp = 1, .mask_width = 4, .xdpi = 90, .ydpi = 45, .color_model = rosprite_rgb },
-/*17*/{.colorbpp = 4, .maskbpp = 1, .mask_width = 4, .xdpi = 90, .ydpi = 45, .color_model = rosprite_rgb },
-/*18*/{.colorbpp = 1, .maskbpp = 1, .mask_width = 1, .xdpi = 90, .ydpi = 90, .color_model = rosprite_rgb },
-/*19*/{.colorbpp = 2, .maskbpp = 1, .mask_width = 2, .xdpi = 90, .ydpi = 90, .color_model = rosprite_rgb },
-/*20*/{.colorbpp = 4, .maskbpp = 1, .mask_width = 4, .xdpi = 90, .ydpi = 90, .color_model = rosprite_rgb },
-/*21*/{.colorbpp = 8, .maskbpp = 1, .mask_width = 8, .xdpi = 90, .ydpi = 90, .color_model = rosprite_rgb },
-/*22*/{.colorbpp = 4, .maskbpp = 1, .mask_width = 4, .xdpi =180, .ydpi = 90, .color_model = rosprite_rgb },
-/*23*/{.colorbpp = 1, .maskbpp = 1, .mask_width = 1, .xdpi = 90, .ydpi = 90, .color_model = rosprite_rgb },
-/*24*/{.colorbpp = 8, .maskbpp = 1, .mask_width = 8, .xdpi = 90, .ydpi = 45, .color_model = rosprite_rgb },
-/*25*/{.colorbpp = 1, .maskbpp = 1, .mask_width = 1, .xdpi = 90, .ydpi = 90, .color_model = rosprite_rgb },
-/*26*/{.colorbpp = 2, .maskbpp = 1, .mask_width = 2, .xdpi = 90, .ydpi = 90, .color_model = rosprite_rgb },
-/*27*/{.colorbpp = 4, .maskbpp = 1, .mask_width = 4, .xdpi = 90, .ydpi = 90, .color_model = rosprite_rgb },
-/*28*/{.colorbpp = 8, .maskbpp = 1, .mask_width = 8, .xdpi = 90, .ydpi = 90, .color_model = rosprite_rgb },
-/*29*/{.colorbpp = 1, .maskbpp = 1, .mask_width = 1, .xdpi = 90, .ydpi = 90, .color_model = rosprite_rgb },
-/*30*/{.colorbpp = 2, .maskbpp = 1, .mask_width = 2, .xdpi = 90, .ydpi = 90, .color_model = rosprite_rgb },
-/*31*/{.colorbpp = 4, .maskbpp = 1, .mask_width = 4, .xdpi = 90, .ydpi = 90, .color_model = rosprite_rgb },
-/*32*/{.colorbpp = 8, .maskbpp = 1, .mask_width = 8, .xdpi = 90, .ydpi = 90, .color_model = rosprite_rgb },
-/*33*/{.colorbpp = 1, .maskbpp = 1, .mask_width = 1, .xdpi = 90, .ydpi = 45, .color_model = rosprite_rgb },
-/*34*/{.colorbpp = 2, .maskbpp = 1, .mask_width = 2, .xdpi = 90, .ydpi = 45, .color_model = rosprite_rgb },
-/*35*/{.colorbpp = 4, .maskbpp = 1, .mask_width = 4, .xdpi = 90, .ydpi = 45, .color_model = rosprite_rgb },
-/*36*/{.colorbpp = 8, .maskbpp = 1, .mask_width = 8, .xdpi = 90, .ydpi = 45, .color_model = rosprite_rgb },
-/*37*/{.colorbpp = 1, .maskbpp = 1, .mask_width = 1, .xdpi = 90, .ydpi = 45, .color_model = rosprite_rgb },
-/*38*/{.colorbpp = 2, .maskbpp = 1, .mask_width = 2, .xdpi = 90, .ydpi = 45, .color_model = rosprite_rgb },
-/*39*/{.colorbpp = 4, .maskbpp = 1, .mask_width = 4, .xdpi = 90, .ydpi = 45, .color_model = rosprite_rgb },
-/*40*/{.colorbpp = 8, .maskbpp = 1, .mask_width = 8, .xdpi = 90, .ydpi = 45, .color_model = rosprite_rgb },
-/*41*/{.colorbpp = 1, .maskbpp = 1, .mask_width = 1, .xdpi = 90, .ydpi = 45, .color_model = rosprite_rgb },
-/*42*/{.colorbpp = 2, .maskbpp = 1, .mask_width = 2, .xdpi = 90, .ydpi = 45, .color_model = rosprite_rgb },
-/*43*/{.colorbpp = 4, .maskbpp = 1, .mask_width = 4, .xdpi = 90, .ydpi = 45, .color_model = rosprite_rgb },
-/*44*/{.colorbpp = 1, .maskbpp = 1, .mask_width = 1, .xdpi = 90, .ydpi = 45, .color_model = rosprite_rgb },
-/*45*/{.colorbpp = 2, .maskbpp = 1, .mask_width = 2, .xdpi = 90, .ydpi = 45, .color_model = rosprite_rgb },
-/*46*/{.colorbpp = 4, .maskbpp = 1, .mask_width = 4, .xdpi = 90, .ydpi = 45, .color_model = rosprite_rgb },
-/*47*/{.colorbpp = 8, .maskbpp = 1, .mask_width = 8, .xdpi = 45, .ydpi = 45, .color_model = rosprite_rgb },
-/*48*/{.colorbpp = 4, .maskbpp = 1, .mask_width = 4, .xdpi = 45, .ydpi = 90, .color_model = rosprite_rgb },
-/*49*/{.colorbpp = 8, .maskbpp = 1, .mask_width = 8, .xdpi = 45, .ydpi = 90, .color_model = rosprite_rgb }
+/*8*/{ .colorbpp = 2, .maskbpp = 1, .mask_width = 2, .xdpi = 90, .ydpi = 45, .color_model = ROSPRITE_RGB },
+/*9*/{ .colorbpp = 4, .maskbpp = 1, .mask_width = 4, .xdpi = 45, .ydpi = 45, .color_model = ROSPRITE_RGB },
+/*10*/{.colorbpp = 8, .maskbpp = 1, .mask_width = 8, .xdpi = 22, .ydpi = 45, .color_model = ROSPRITE_RGB },
+/*11*/{.colorbpp = 2, .maskbpp = 1, .mask_width = 2, .xdpi = 90, .ydpi = 45, .color_model = ROSPRITE_RGB },
+/*12*/{.colorbpp = 4, .maskbpp = 1, .mask_width = 4, .xdpi = 90, .ydpi = 45, .color_model = ROSPRITE_RGB },
+/*13*/{.colorbpp = 8, .maskbpp = 1, .mask_width = 8, .xdpi = 45, .ydpi = 45, .color_model = ROSPRITE_RGB },
+/*14*/{.colorbpp = 4, .maskbpp = 1, .mask_width = 4, .xdpi = 90, .ydpi = 45, .color_model = ROSPRITE_RGB },
+/*15*/{.colorbpp = 8, .maskbpp = 1, .mask_width = 8, .xdpi = 90, .ydpi = 45, .color_model = ROSPRITE_RGB },
+/*16*/{.colorbpp = 4, .maskbpp = 1, .mask_width = 4, .xdpi = 90, .ydpi = 45, .color_model = ROSPRITE_RGB },
+/*17*/{.colorbpp = 4, .maskbpp = 1, .mask_width = 4, .xdpi = 90, .ydpi = 45, .color_model = ROSPRITE_RGB },
+/*18*/{.colorbpp = 1, .maskbpp = 1, .mask_width = 1, .xdpi = 90, .ydpi = 90, .color_model = ROSPRITE_RGB },
+/*19*/{.colorbpp = 2, .maskbpp = 1, .mask_width = 2, .xdpi = 90, .ydpi = 90, .color_model = ROSPRITE_RGB },
+/*20*/{.colorbpp = 4, .maskbpp = 1, .mask_width = 4, .xdpi = 90, .ydpi = 90, .color_model = ROSPRITE_RGB },
+/*21*/{.colorbpp = 8, .maskbpp = 1, .mask_width = 8, .xdpi = 90, .ydpi = 90, .color_model = ROSPRITE_RGB },
+/*22*/{.colorbpp = 4, .maskbpp = 1, .mask_width = 4, .xdpi =180, .ydpi = 90, .color_model = ROSPRITE_RGB },
+/*23*/{.colorbpp = 1, .maskbpp = 1, .mask_width = 1, .xdpi = 90, .ydpi = 90, .color_model = ROSPRITE_RGB },
+/*24*/{.colorbpp = 8, .maskbpp = 1, .mask_width = 8, .xdpi = 90, .ydpi = 45, .color_model = ROSPRITE_RGB },
+/*25*/{.colorbpp = 1, .maskbpp = 1, .mask_width = 1, .xdpi = 90, .ydpi = 90, .color_model = ROSPRITE_RGB },
+/*26*/{.colorbpp = 2, .maskbpp = 1, .mask_width = 2, .xdpi = 90, .ydpi = 90, .color_model = ROSPRITE_RGB },
+/*27*/{.colorbpp = 4, .maskbpp = 1, .mask_width = 4, .xdpi = 90, .ydpi = 90, .color_model = ROSPRITE_RGB },
+/*28*/{.colorbpp = 8, .maskbpp = 1, .mask_width = 8, .xdpi = 90, .ydpi = 90, .color_model = ROSPRITE_RGB },
+/*29*/{.colorbpp = 1, .maskbpp = 1, .mask_width = 1, .xdpi = 90, .ydpi = 90, .color_model = ROSPRITE_RGB },
+/*30*/{.colorbpp = 2, .maskbpp = 1, .mask_width = 2, .xdpi = 90, .ydpi = 90, .color_model = ROSPRITE_RGB },
+/*31*/{.colorbpp = 4, .maskbpp = 1, .mask_width = 4, .xdpi = 90, .ydpi = 90, .color_model = ROSPRITE_RGB },
+/*32*/{.colorbpp = 8, .maskbpp = 1, .mask_width = 8, .xdpi = 90, .ydpi = 90, .color_model = ROSPRITE_RGB },
+/*33*/{.colorbpp = 1, .maskbpp = 1, .mask_width = 1, .xdpi = 90, .ydpi = 45, .color_model = ROSPRITE_RGB },
+/*34*/{.colorbpp = 2, .maskbpp = 1, .mask_width = 2, .xdpi = 90, .ydpi = 45, .color_model = ROSPRITE_RGB },
+/*35*/{.colorbpp = 4, .maskbpp = 1, .mask_width = 4, .xdpi = 90, .ydpi = 45, .color_model = ROSPRITE_RGB },
+/*36*/{.colorbpp = 8, .maskbpp = 1, .mask_width = 8, .xdpi = 90, .ydpi = 45, .color_model = ROSPRITE_RGB },
+/*37*/{.colorbpp = 1, .maskbpp = 1, .mask_width = 1, .xdpi = 90, .ydpi = 45, .color_model = ROSPRITE_RGB },
+/*38*/{.colorbpp = 2, .maskbpp = 1, .mask_width = 2, .xdpi = 90, .ydpi = 45, .color_model = ROSPRITE_RGB },
+/*39*/{.colorbpp = 4, .maskbpp = 1, .mask_width = 4, .xdpi = 90, .ydpi = 45, .color_model = ROSPRITE_RGB },
+/*40*/{.colorbpp = 8, .maskbpp = 1, .mask_width = 8, .xdpi = 90, .ydpi = 45, .color_model = ROSPRITE_RGB },
+/*41*/{.colorbpp = 1, .maskbpp = 1, .mask_width = 1, .xdpi = 90, .ydpi = 45, .color_model = ROSPRITE_RGB },
+/*42*/{.colorbpp = 2, .maskbpp = 1, .mask_width = 2, .xdpi = 90, .ydpi = 45, .color_model = ROSPRITE_RGB },
+/*43*/{.colorbpp = 4, .maskbpp = 1, .mask_width = 4, .xdpi = 90, .ydpi = 45, .color_model = ROSPRITE_RGB },
+/*44*/{.colorbpp = 1, .maskbpp = 1, .mask_width = 1, .xdpi = 90, .ydpi = 45, .color_model = ROSPRITE_RGB },
+/*45*/{.colorbpp = 2, .maskbpp = 1, .mask_width = 2, .xdpi = 90, .ydpi = 45, .color_model = ROSPRITE_RGB },
+/*46*/{.colorbpp = 4, .maskbpp = 1, .mask_width = 4, .xdpi = 90, .ydpi = 45, .color_model = ROSPRITE_RGB },
+/*47*/{.colorbpp = 8, .maskbpp = 1, .mask_width = 8, .xdpi = 45, .ydpi = 45, .color_model = ROSPRITE_RGB },
+/*48*/{.colorbpp = 4, .maskbpp = 1, .mask_width = 4, .xdpi = 45, .ydpi = 90, .color_model = ROSPRITE_RGB },
+/*49*/{.colorbpp = 8, .maskbpp = 1, .mask_width = 8, .xdpi = 45, .ydpi = 90, .color_model = ROSPRITE_RGB }
 };
 
 /* table for converting a 5bit channel into an 8bit channel (used for 16bpp to 32bpp conversion) */
@@ -279,7 +279,7 @@ static rosprite_error sprite_get_mode(uint32_t spriteMode, struct rosprite_mode*
 		mode.xdpi = (spriteMode & 0x07ffc000) >> 14; /* preserve bits 14-26 only */
 		mode.ydpi = (spriteMode & 0x00003ffe) >> 1; /* preserve bits 1-13 only */
 
-		mode.color_model = rosprite_rgb;
+		mode.color_model = ROSPRITE_RGB;
 		switch (spriteType) {
 		case 1:
 			mode.colorbpp = 1; break;
@@ -295,7 +295,7 @@ static rosprite_error sprite_get_mode(uint32_t spriteMode, struct rosprite_mode*
 			mode.colorbpp = 32; break;
 		case 7:
 			mode.colorbpp = 32;
-			mode.color_model = rosprite_cmyk;
+			mode.color_model = ROSPRITE_CMYK;
 			break;
 		case 8:
 			mode.colorbpp = 24; break;
@@ -375,7 +375,7 @@ static uint32_t sprite_upscale_color(uint32_t pixel, struct rosprite_mode* mode,
 {
 	switch (mode->colorbpp) {
 	case 32:
-		if (mode->color_model == rosprite_rgb) {
+		if (mode->color_model == ROSPRITE_RGB) {
 			/* swap from 0xAABBGGRR to 0xRRGGBBAA */
 			pixel = BSWAP(pixel);
 
@@ -730,9 +730,6 @@ void rosprite_destroy_sprite_area(struct rosprite_area* sprite_area)
 
 rosprite_error rosprite_load_palette(reader reader, void* ctx, struct rosprite_palette** result)
 {
-	/* Palette file is in groups of 6 bytes, each is a VDU 19 (set palette)
-	 * http://www.drobe.co.uk/show_manual.php?manual=/sh-cgi?manual=Vdu%26page=19 */
-
 	/* TODO: currently assume palette has linear entries (2nd byte in is 00, 01, 02 etc) */
 	struct rosprite_palette* palette = malloc(sizeof(struct rosprite_palette));
 

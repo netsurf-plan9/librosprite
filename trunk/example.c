@@ -119,7 +119,7 @@ int main(int argc, char *argv[])
 	for (uint32_t i = 0; i < sprite_area->sprite_count; i++) {
 		struct rosprite* sprite = sprite_area->sprites[i];
 		printf("\nname %s\n", sprite->name);
-		printf("color_model %s\n", sprite->mode.color_model == rosprite_rgb ? "RGB" : "CMYK");
+		printf("color_model %s\n", sprite->mode.color_model == ROSPRITE_RGB ? "RGB" : "CMYK");
 		printf("colorbpp %u\n", sprite->mode.colorbpp);
 		printf("xdpi %u\n", sprite->mode.xdpi);
 		printf("ydpi %u\n", sprite->mode.ydpi);
