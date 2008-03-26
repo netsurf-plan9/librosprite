@@ -13,8 +13,10 @@
 /* reverse the byte order of a word such that 0xAABBCCDD becomes 0xDDCCBBAA */
 #define BSWAP(word) (((word & (0x000000ff)) << 24) | ((word & 0x0000ff00) << 8) | ((word & 0x00ff0000) >> 8) | ((word & 0xff000000) >> 24))
 
-#define ROSPRITE_OK 0;
-#define ROSPRITE_READ_FAILED 1;
+#define ERRCHK(x) do { \
+	rosprite_error err = x; \
+	if (err != ROSPRITE_OK) return err; \
+} while(0)
 
 struct rosprite_header {
 	uint32_t width_words; /* width in words */
@@ -236,7 +238,7 @@ int rosprite_mem_reader(uint8_t* buf, size_t count, void* ctx)
 {
 	struct rosprite_mem_context* memctx = (struct rosprite_mem_context*) ctx;
 	if (memctx->offset + count > memctx->size) {
-		return -1; // TODO: use enum
+		return -1;
 	}
 
 	// if we're asked for more memory than the block contains, only copy as much as we can
@@ -248,7 +250,7 @@ int rosprite_mem_reader(uint8_t* buf, size_t count, void* ctx)
 	}
 	memcpy(buf, memctx->base + memctx->offset, count);
 	memctx->offset += count;
-	return copy_size; // TODO: assert size bounds, return real count
+	return copy_size;
 }
 
 rosprite_error sprite_read_word(reader reader, void* ctx, uint32_t* result)
@@ -261,7 +263,7 @@ rosprite_error sprite_read_word(reader reader, void* ctx, uint32_t* result)
 	return ROSPRITE_OK;
 }
 
-static struct rosprite_mode sprite_get_mode(uint32_t spriteMode)
+static rosprite_error sprite_get_mode(uint32_t spriteMode, struct rosprite_mode* result)
 {
 	struct rosprite_mode mode;
 
@@ -298,22 +300,23 @@ static struct rosprite_mode sprite_get_mode(uint32_t spriteMode)
 		case 8:
 			mode.colorbpp = 24; break;
 		default:
-			assert(false);
+			return ROSPRITE_BADMODE;
 		}
 	} else {
 		/* clone station mode and return */
 		assert(spriteMode < 256); /* don't think you can have modes over 255? */
-		assert(oldmodes[spriteMode].colorbpp > 0); 
 
 		mode = oldmodes[spriteMode];
 	}
 
 	/* illegal mode check */
-	assert(mode.colorbpp > 0);
-	assert(mode.xdpi > 0);
-	assert(mode.ydpi > 0);
+	if ((mode.colorbpp == 0) || (mode.xdpi == 0) || (mode.ydpi == 0)) {
+		return ROSPRITE_BADMODE;
+	}
 
-	return mode;
+	memcpy(result, &mode, sizeof(struct rosprite_mode));
+
+	return ROSPRITE_OK;
 }
 
 static uint32_t sprite_palette_lookup(struct rosprite* sprite, uint32_t pixel)
@@ -425,9 +428,10 @@ static inline void sprite_fix_alpha(uint32_t* image, uint32_t pixels)
 	}
 }
 
-static struct rosprite_mask_state* sprite_init_mask_state(struct rosprite* sprite, struct rosprite_header* header, uint8_t* mask)
+static rosprite_error sprite_init_mask_state(struct rosprite* sprite, struct rosprite_header* header, uint8_t* mask, struct rosprite_mask_state** result)
 {
 	struct rosprite_mask_state* mask_state = malloc(sizeof(struct rosprite_mask_state));
+	if (!mask_state) return ROSPRITE_NOMEM;
 
 	mask_state->x = header->first_used_bit;
 	mask_state->y = 0;
@@ -438,7 +442,9 @@ static struct rosprite_mask_state* sprite_init_mask_state(struct rosprite* sprit
 	mask_state->current_word = BTUINT(mask);
 	mask_state->current_byte_index = 4;
 
-	return mask_state;
+	*result = mask_state;
+
+	return ROSPRITE_OK;
 }
 
 /* Get the next mask byte.
@@ -478,10 +484,12 @@ static uint32_t sprite_next_mask_pixel(uint8_t* mask, struct rosprite_mask_state
 	return pixel;
 }
 
-static void sprite_load_high_color(uint8_t* image_in, uint8_t* mask, struct rosprite* sprite, struct rosprite_header* header)
+static rosprite_error sprite_load_high_color(uint8_t* image_in, uint8_t* mask, struct rosprite* sprite, struct rosprite_header* header)
 {
 	struct rosprite_mask_state* mask_state = NULL;
-	if (sprite->has_mask) mask_state = sprite_init_mask_state(sprite, header, mask);
+	if (sprite->has_mask) {
+		ERRCHK(sprite_init_mask_state(sprite, header, mask, &mask_state));
+	}
 
 	sprite->image = malloc(sprite->width * sprite->height * 4); /* all image data is 32bpp going out */
 
@@ -524,12 +532,15 @@ static void sprite_load_high_color(uint8_t* image_in, uint8_t* mask, struct rosp
 	}
 
 	if (sprite->has_mask) free(mask_state);
+	return ROSPRITE_OK;
 }
 
-static void sprite_load_low_color(uint8_t* image_in, uint8_t* mask, struct rosprite* sprite, struct rosprite_header* header)
+static rosprite_error sprite_load_low_color(uint8_t* image_in, uint8_t* mask, struct rosprite* sprite, struct rosprite_header* header)
 {
 	struct rosprite_mask_state* mask_state = NULL;
-	if (sprite->has_mask) mask_state = sprite_init_mask_state(sprite, header, mask);
+	if (sprite->has_mask) {
+		ERRCHK(sprite_init_mask_state(sprite, header, mask, &mask_state));
+	}
 
 	sprite->image = malloc(sprite->width * sprite->height * 4); /* all image data is 32bpp going out */
 
@@ -570,9 +581,11 @@ static void sprite_load_low_color(uint8_t* image_in, uint8_t* mask, struct rospr
 	}
 
 	if (sprite->has_mask) free(mask_state);
+
+	return ROSPRITE_OK;
 }
 
-struct rosprite* sprite_load_sprite(reader reader, void* ctx)
+rosprite_error sprite_load_sprite(reader reader, void* ctx, struct rosprite** result)
 {
 	uint32_t nextSpriteOffset;
 	sprite_read_word(reader, ctx, &nextSpriteOffset);
@@ -583,22 +596,22 @@ struct rosprite* sprite_load_sprite(reader reader, void* ctx)
 	reader(sprite->name, 12, ctx);
 	sprite->name[12] = '\0';
 
-	sprite_read_word(reader, ctx, &header->width_words); /* file has width - 1 and height - 1 */
+	ERRCHK(sprite_read_word(reader, ctx, &header->width_words)); /* file has width - 1 and height - 1 */
 	header->width_words += 1;
-	sprite_read_word(reader, ctx, &(sprite->height));
+	ERRCHK(sprite_read_word(reader, ctx, &(sprite->height)));
 	sprite->height += 1;
-	sprite_read_word(reader, ctx, &(header->first_used_bit)); /* old format only (spriteType = 0) */
-	sprite_read_word(reader, ctx, &(header->last_used_bit));
+	ERRCHK(sprite_read_word(reader, ctx, &(header->first_used_bit))); /* old format only (spriteType = 0) */
+	ERRCHK(sprite_read_word(reader, ctx, &(header->last_used_bit)));
 
 	uint32_t imageOffset;
-	sprite_read_word(reader, ctx, &imageOffset);
+	ERRCHK(sprite_read_word(reader, ctx, &imageOffset));
 	assert(imageOffset >= 44); /* should never be smaller than the size of the header) */
 
 	uint32_t maskOffset, spriteModeWord;
-	sprite_read_word(reader, ctx, &maskOffset);
-	sprite_read_word(reader, ctx, &spriteModeWord);
+	ERRCHK(sprite_read_word(reader, ctx, &maskOffset));
+	ERRCHK(sprite_read_word(reader, ctx, &spriteModeWord));
 
-	sprite->mode = sprite_get_mode(spriteModeWord);
+	ERRCHK(sprite_get_mode(spriteModeWord, &(sprite->mode)));
 
 	/* TODO left-hand wastage */
 	
@@ -608,7 +621,6 @@ struct rosprite* sprite_load_sprite(reader reader, void* ctx)
 
 	sprite->palettesize     = imageOffset - 44;
 	sprite->has_palette     = (sprite->palettesize > 0);
-
 
 	/* sprite has no mask if imageOffset == maskOffset */
 	if (imageOffset == maskOffset) {
@@ -633,8 +645,8 @@ struct rosprite* sprite_load_sprite(reader reader, void* ctx)
 		 */
 		for (uint32_t j = 0; j < paletteEntries; j++) {
 			uint32_t word1, word2;
-			sprite_read_word(reader, ctx, &word1);
-			sprite_read_word(reader, ctx, &word2);
+			ERRCHK(sprite_read_word(reader, ctx, &word1));
+			ERRCHK(sprite_read_word(reader, ctx, &word2));
 			assert(word1 == word2); /* if they aren't equal, flashing colours are desired, which we don't support */
 			
 			/* swap rr and bb parts -- PRM1-731 */
@@ -656,42 +668,50 @@ struct rosprite* sprite_load_sprite(reader reader, void* ctx)
 	assert((header->width_words) * 4 * (sprite->height) == header->image_size);
 	/* TODO: sanity check mask_size */
 	if (sprite->mode.colorbpp > 8) {
-		sprite_load_high_color(image, mask, sprite, header);
+		ERRCHK(sprite_load_high_color(image, mask, sprite, header));
 	} else {
-		sprite_load_low_color(image, mask, sprite, header);
+		ERRCHK(sprite_load_low_color(image, mask, sprite, header));
 	}
 
 	free(image);
 	free(mask);
 	free(header);
 
-	return sprite;
+	*result = sprite;
+
+	return ROSPRITE_OK;
 }
 
-struct rosprite_area* rosprite_load(reader reader, void* ctx)
+rosprite_error rosprite_load(reader reader, void* ctx, struct rosprite_area** result)
 {
 	struct rosprite_area* sprite_area = malloc(sizeof(struct rosprite_area));
 
-	sprite_read_word(reader, ctx, &(sprite_area->sprite_count));
+	ERRCHK(sprite_read_word(reader, ctx, &(sprite_area->sprite_count)));
 
 	uint32_t firstSpriteOffset, firstFreeWordOffset;
-	sprite_read_word(reader, ctx, &firstSpriteOffset);
-	sprite_read_word(reader, ctx, &firstFreeWordOffset); /* TODO: use this for some sanity checking? */
+	ERRCHK(sprite_read_word(reader, ctx, &firstSpriteOffset));
+	ERRCHK(sprite_read_word(reader, ctx, &firstFreeWordOffset)); /* TODO: use this for some sanity checking? */
 	sprite_area->extension_size = 16 - firstSpriteOffset;
 
 	sprite_area->extension_words = NULL;
 	if (sprite_area->extension_size > 0) {
-		sprite_area->extension_words = malloc(sprite_area->extension_size); /* where to free() this? */
-		reader(sprite_area->extension_words, (size_t) (sprite_area->extension_size), ctx); /* TODO: check return value */
+		sprite_area->extension_words = malloc(sprite_area->extension_size);
+		int bytes_read = reader(sprite_area->extension_words, (size_t) (sprite_area->extension_size), ctx);
+		if (bytes_read < (signed long) sprite_area->extension_size) {
+			return ROSPRITE_EOF;
+		}
 	}
 
 	sprite_area->sprites = malloc(sizeof(struct rosprite*) * sprite_area->sprite_count); /* allocate array of pointers */
 	for (uint32_t i = 0; i < sprite_area->sprite_count; i++) {
-		struct rosprite* sprite = sprite_load_sprite(reader, ctx);
+		struct rosprite* sprite;
+		ERRCHK(sprite_load_sprite(reader, ctx, &sprite));
 		sprite_area->sprites[i] = sprite;
 	}
 
-	return sprite_area;
+	*result = sprite_area;
+
+	return ROSPRITE_OK;
 }
 
 void rosprite_destroy_sprite_area(struct rosprite_area* sprite_area)
@@ -708,7 +728,7 @@ void rosprite_destroy_sprite_area(struct rosprite_area* sprite_area)
 	free(sprite_area);
 }
 
-struct rosprite_palette* rosprite_load_palette(reader reader, void* ctx)
+rosprite_error rosprite_load_palette(reader reader, void* ctx, struct rosprite_palette** result)
 {
 	/* Palette file is in groups of 6 bytes, each is a VDU 19 (set palette)
 	 * http://www.drobe.co.uk/show_manual.php?manual=/sh-cgi?manual=Vdu%26page=19 */
@@ -743,7 +763,9 @@ struct rosprite_palette* rosprite_load_palette(reader reader, void* ctx)
 
 	palette->size = c;
 
-	return palette;
+	*result = palette;
+
+	return ROSPRITE_OK;
 }
 
 void rosprite_destroy_palette(struct rosprite_palette* palette)

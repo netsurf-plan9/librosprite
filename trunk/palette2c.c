@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "libsprite.h"
+#include "librosprite.h"
  
 int main(int argc, char *argv[])
 {
@@ -18,9 +18,15 @@ int main(int argc, char *argv[])
 		exit(EXIT_FAILURE);
 	}
 
-	struct rosprite_file_context* ctx = rosprite_create_file_context(f);
+	struct rosprite_file_context* ctx;
+	if (rosprite_create_file_context(f, &ctx) != ROSPRITE_OK) {
+		exit(EXIT_FAILURE);
+	}
 	
-	struct rosprite_palette* palette = rosprite_load_palette(rosprite_file_reader, ctx);
+	struct rosprite_palette* palette;
+	if (rosprite_load_palette(rosprite_file_reader, ctx, &palette) != ROSPRITE_OK) {
+		exit(EXIT_FAILURE);
+	}
 
 	for (uint32_t i = 0; i < palette->size; i++) {
 		printf("0x%x, ", palette->palette[i]);

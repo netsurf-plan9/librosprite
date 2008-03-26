@@ -5,7 +5,7 @@
 #include <stdio.h>
 #include <stdbool.h>
 
-typedef enum { ROSPRITE_OK, ROSPRITE_NOMEM, ROSPRITE_EOF } rosprite_error;
+typedef enum { ROSPRITE_OK, ROSPRITE_NOMEM, ROSPRITE_EOF, ROSPRITE_BADMODE } rosprite_error;
 
 typedef enum { rosprite_rgb, rosprite_cmyk } rosprite_color_model;
 
@@ -52,6 +52,7 @@ struct rosprite {
 	uint32_t* image; /* image data in 0xRRGGBBAA words */
 };
 
+struct rosprite_file_context;
 rosprite_error rosprite_create_file_context(FILE* f, struct rosprite_file_context** ctx);
 void rosprite_destroy_file_context(struct rosprite_file_context* ctx);
 int rosprite_file_reader(uint8_t* buf, size_t count, void* ctx);
@@ -61,10 +62,10 @@ rosprite_error rosprite_create_mem_context(uint8_t* p, unsigned long total_size,
 void rosprite_destroy_mem_context(struct rosprite_mem_context* ctx);
 int rosprite_mem_reader(uint8_t* buf, size_t count, void* ctx);
 
-struct rosprite_area* rosprite_load(reader reader, void* ctx);
+rosprite_error rosprite_load(reader reader, void* ctx, struct rosprite_area** result);
 void rosprite_destroy_sprite_area(struct rosprite_area *);
 
-struct rosprite_palette* rosprite_load_palette(reader reader, void* ctx);
+rosprite_error rosprite_load_palette(reader reader, void* ctx, struct rosprite_palette** result);
 void rosprite_destroy_palette(struct rosprite_palette *);
 
 
