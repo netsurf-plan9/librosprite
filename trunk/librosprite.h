@@ -1,7 +1,7 @@
 /**
  * \mainpage
  *
- * librosprite is a library for reading RISC OS sprite files.  The following subformats are supported:
+ * librosprite is a library for reading RISC OS sprite and palette files.  The following subformats are supported:
  * <ul>
  *   <li>1-bit and 8-bit transparency masks</li>
  *   <li>Sprites with custom palettes</li>
@@ -10,10 +10,20 @@
  *   <li>32bpp CMYK</li>
  *   <li>Inline alpha channel, as used by Photodesk and Tinct</li>
  * </ul>
+ *
  */
 
 /**
  * \file librosprite.h
+ *
+ * Sprite file reading is performed by rosprite_load(), and palette file reading by rosprite_load_palette().
+ *
+ * Retrieving sprite or palette data is performed by a reader.
+ * librosprite implements file and memory readers.
+ * To use a reader, create a context by calling the
+ * rosprite_create_file_context() or rosprite_create_mem_context().
+ * Pass the reader function, and the context you have created, to the load function,
+ * typically rosprite_load().
  */
 
 #ifndef ROSPRITE_H
@@ -35,7 +45,7 @@ typedef int (*reader)(uint8_t* buf, size_t count, void* ctx);
 struct rosprite_file_context;
 
 /**
- * A sprite area comprises zero more rosprites.  Optionally, it may also have an extension_words block.
+ * A sprite area comprises zero or more rosprites.  Optionally, it may also have an extension_words block.
  */
 struct rosprite_area {
 	uint32_t extension_size; /* size of extension_words in bytes */
@@ -111,11 +121,27 @@ struct rosprite {
 };
 
 struct rosprite_file_context;
-rosprite_error rosprite_create_file_context(FILE* f, struct rosprite_file_context** ctx);
+
+/**
+ * Create a file reader context using the specified file handle.
+ * Clients must call rosprite_destroy_file_context() to dispose of the context.
+ *
+ * \param[out] result
+ */
+rosprite_error rosprite_create_file_context(FILE* f, struct rosprite_file_context** result);
 void rosprite_destroy_file_context(struct rosprite_file_context* ctx);
 int rosprite_file_reader(uint8_t* buf, size_t count, void* ctx);
 
 struct rosprite_mem_context;
+
+/**
+ * Create a memory reader context using the specified memory pointer.
+ * Clients must call rosprite_destroy_mem_context() to dispose of the context.
+ *
+ * \param[in]  p          pointer to the start of the memory block
+ * \param[in]  total_size the size of the block pointed to by p, in bytes
+ * \param[out] result
+ */
 rosprite_error rosprite_create_mem_context(uint8_t* p, unsigned long total_size, struct rosprite_mem_context** result);
 void rosprite_destroy_mem_context(struct rosprite_mem_context* ctx);
 int rosprite_mem_reader(uint8_t* buf, size_t count, void* ctx);
@@ -123,6 +149,7 @@ int rosprite_mem_reader(uint8_t* buf, size_t count, void* ctx);
 /**
  * Load a rosprite_area using the reader provided.
  * Clients must call rosprite_destroy_sprite_area() to dispose of the rosprite_area.
+ *
  * \param[out] result The pointer to be populated by this function.
  */
 rosprite_error rosprite_load(reader reader, void* ctx, struct rosprite_area** result);

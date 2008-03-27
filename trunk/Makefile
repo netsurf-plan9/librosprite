@@ -8,9 +8,9 @@ CFLAGS = -Wall -Wextra -Wundef -Wpointer-arith -Wcast-align \
 	-Wnested-externs -Werror -pedantic -std=c99 \
 	-Wno-format-zero-length -Wformat-security -Wstrict-aliasing=2 \
 	-Wmissing-format-attribute -Wunused -Wunreachable-code \
-	-Wformat=2 -Werror-implicit-function-declaration
+	-Wformat=2 -Werror-implicit-function-declaration \
+	-Wmissing-declarations -Wmissing-prototypes
 LDFLAGS = -L./
-#-Wmissing-declarations -Wmissing-prototypes
 
 all: example palette2c
 

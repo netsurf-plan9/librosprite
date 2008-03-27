@@ -7,10 +7,14 @@
 
 #include "librosprite.h"
 
-/* reads four bytes, 00, 11, 22 and 33, of a byte array b to give 0x33221100 */
+/**
+ * Reads four bytes, 00, 11, 22 and 33, of a byte array b to give 0x33221100.
+ */
 #define BTUINT(b) (b[0] | (b[1] << 8) | (b[2] << 16) | (b[3] << 24))
 
-/* reverse the byte order of a word such that 0xAABBCCDD becomes 0xDDCCBBAA */
+/**
+ * Reverse the byte order of a word such that 0xAABBCCDD becomes 0xDDCCBBAA.
+ */
 #define BSWAP(word) (((word & (0x000000ff)) << 24) | ((word & 0x0000ff00) << 8) | ((word & 0x00ff0000) >> 8) | ((word & 0xff000000) >> 24))
 
 #define ERRCHK(x) do { \
@@ -196,501 +200,27 @@ static const uint32_t sprite_8bpp_palette[] = {
 0xccccccff, 0xddddddff, 0xeeeeeeff, 0xffffffff
 };
 
-rosprite_error rosprite_create_file_context(FILE* f, struct rosprite_file_context** result)
-{
-	struct rosprite_file_context* ctx = malloc(sizeof(struct rosprite_file_context));
-	if (!ctx) return ROSPRITE_NOMEM;
-	ctx->f = f;
-	*result = ctx;
-
-	return ROSPRITE_OK;
-}
-
-void rosprite_destroy_file_context(struct rosprite_file_context* ctx)
-{
-	free(ctx);
-}
-
-int rosprite_file_reader(uint8_t* buf, size_t count, void* ctx)
-{
-	return fread(buf, 1 /*size*/, count, ((struct rosprite_file_context*) ctx)->f);
-}
-
-rosprite_error rosprite_create_mem_context(uint8_t* p, unsigned long total_size, struct rosprite_mem_context** result)
-{
-	struct rosprite_mem_context* ctx = malloc(sizeof(struct rosprite_mem_context));
-	if (!ctx) return ROSPRITE_NOMEM;
- 
-	ctx->base = p;
-	ctx->offset = 0;
-	ctx->size = total_size;
-	*result = ctx;
- 
-	return ROSPRITE_OK;
-}
-
-void rosprite_destroy_mem_context(struct rosprite_mem_context* ctx)
-{
-	free(ctx);
-}
-
-int rosprite_mem_reader(uint8_t* buf, size_t count, void* ctx)
-{
-	struct rosprite_mem_context* memctx = (struct rosprite_mem_context*) ctx;
-	if (memctx->offset + count > memctx->size) {
-		return -1;
-	}
-
-	// if we're asked for more memory than the block contains, only copy as much as we can
-	size_t copy_size;
-	if ((memctx->offset + count) > memctx->size) {
-		copy_size = memctx->size - memctx->offset;
-	} else {
-		copy_size = count;
-	}
-	memcpy(buf, memctx->base + memctx->offset, count);
-	memctx->offset += count;
-	return copy_size;
-}
-
-rosprite_error sprite_read_word(reader reader, void* ctx, uint32_t* result)
-{
-	unsigned char b[4];
-	if (reader(b, 4, ctx) < 4) {
-		return ROSPRITE_EOF;
-	}
-	*result = BTUINT(b);
-	return ROSPRITE_OK;
-}
-
-static rosprite_error sprite_get_mode(uint32_t spriteMode, struct rosprite_mode* result)
-{
-	struct rosprite_mode mode;
-
-	uint32_t spriteType = (spriteMode & 0x78000000) >> 27; /* preserve bits 27-30 only */
-
-	if (spriteType != 0) {
-		bool hasEightBitAlpha = (spriteMode & 0x80000000) >> 31; /* bit 31 */
-		/* new modes have 1bpp masks (PRM5a-111)
-		 * unless bit 31 is set (http://select.riscos.com/prm/graphics/sprites/alphachannel.html)
-		 */
-		mode.maskbpp = (hasEightBitAlpha ? 8 : 1);
-		mode.mask_width = mode.maskbpp;
-		mode.xdpi = (spriteMode & 0x07ffc000) >> 14; /* preserve bits 14-26 only */
-		mode.ydpi = (spriteMode & 0x00003ffe) >> 1; /* preserve bits 1-13 only */
-
-		mode.color_model = ROSPRITE_RGB;
-		switch (spriteType) {
-		case 1:
-			mode.colorbpp = 1; break;
-		case 2:
-			mode.colorbpp = 2; break;
-		case 3:
-			mode.colorbpp = 4; break;
-		case 4:
-			mode.colorbpp = 8; break;
-		case 5:
-			mode.colorbpp = 16; break;
-		case 6:
-			mode.colorbpp = 32; break;
-		case 7:
-			mode.colorbpp = 32;
-			mode.color_model = ROSPRITE_CMYK;
-			break;
-		case 8:
-			mode.colorbpp = 24; break;
-		default:
-			return ROSPRITE_BADMODE;
-		}
-	} else {
-		/* clone station mode and return */
-		assert(spriteMode < 256); /* don't think you can have modes over 255? */
-
-		mode = oldmodes[spriteMode];
-	}
-
-	/* illegal mode check */
-	if ((mode.colorbpp == 0) || (mode.xdpi == 0) || (mode.ydpi == 0)) {
-		return ROSPRITE_BADMODE;
-	}
-
-	memcpy(result, &mode, sizeof(struct rosprite_mode));
-
-	return ROSPRITE_OK;
-}
-
-static uint32_t sprite_palette_lookup(struct rosprite* sprite, uint32_t pixel)
-{
-	uint32_t translated_pixel;
-	 /* because we're dealing with 8bpp or less */
-	if (sprite->has_palette) {
-		assert(pixel <= sprite->palettesize); /* TODO: what to do if your color depth is bigger than palette? */
-		translated_pixel = sprite->palette[pixel];
-	} else {
-		switch (sprite->mode.colorbpp) {
-		case 8:
-			assert(pixel < 256);
-			translated_pixel = sprite_8bpp_palette[pixel];
-			break;
-		case 4:
-			assert(pixel < 16);
-			translated_pixel = sprite_4bpp_palette[pixel];
-			break;
-		case 2:
-			assert(pixel < 4);
-			translated_pixel = sprite_2bpp_palette[pixel];
-			break;
-		case 1:
-			assert(pixel < 2);
-			translated_pixel = sprite_1bpp_palette[pixel];
-			break;
-		default:
-			assert(false);
-		}
-	}
-	return translated_pixel;
-}
-
-static inline uint32_t sprite_cmyk_to_rgb(uint32_t cmyk)
-{
-        uint8_t c = cmyk & 0xff;
-        uint8_t m = (cmyk & 0xff00) >> 8;
-        uint8_t y = (cmyk & 0xff0000) >> 16;
-        uint8_t k = cmyk >> 24;
- 
-        /* Convert to CMY colourspace */
-        uint8_t C = c + k;
-        uint8_t M = m + k;
-        uint8_t Y = y + k;
- 
-        /* And to RGB */
-        uint8_t r = 255 - C;
-        uint8_t g = 255 - M;
-        uint8_t b = 255 - Y;
- 
-        return r << 24 | g << 16 | b << 8;
-}
-
-static uint32_t sprite_upscale_color(uint32_t pixel, struct rosprite_mode* mode, bool* has_alpha_pixel_data)
-{
-	switch (mode->colorbpp) {
-	case 32:
-		if (mode->color_model == ROSPRITE_RGB) {
-			/* swap from 0xAABBGGRR to 0xRRGGBBAA */
-			pixel = BSWAP(pixel);
-
-			uint8_t alpha = pixel & 0xff;
-			if (alpha == 0x00) {
-				if (!(*has_alpha_pixel_data)) {
-					pixel = pixel | 0xff;
-				}
-			} else {
-				*has_alpha_pixel_data = true;
-			}
-			return pixel;
-		} else {
-			return sprite_cmyk_to_rgb(pixel);
-		}
-	case 24:
-		/* reverse byte order */
-		return BSWAP(pixel);
-	case 16:
-		/* incoming format is b_00000000000000000bbbbbgggggrrrrr */
-		{
-			uint8_t red   = pixel & 31;
-			uint8_t green = (pixel & (31 << 5)) >> 5;
-			uint8_t blue  = (pixel & (31 << 10)) >> 10;
-
-			/* sanity check */
-			assert(red < 32);
-			assert(green < 32);
-			assert(blue < 32);
-
-			pixel =   (sprite_16bpp_translate[red] << 24)
-					| (sprite_16bpp_translate[green] << 16)
-					| (sprite_16bpp_translate[blue] << 8);
-		return pixel;
-		}
-	case 8:
-	case 4:
-	case 2:
-	case 1:
-		assert(false); /* shouldn't need to call for <= 8bpp, since a palette lookup will return 32bpp */
-	default:
-		assert(false); /* unknown bpp */
-	}
-}
-
-static inline void sprite_fix_alpha(uint32_t* image, uint32_t pixels)
-{
-	for (uint32_t i = 0; i <= pixels; i++) {
-		image[i] = image[i] & 0xffffff00;
-	}
-}
-
-static rosprite_error sprite_init_mask_state(struct rosprite* sprite, struct rosprite_header* header, uint8_t* mask, struct rosprite_mask_state** result)
-{
-	struct rosprite_mask_state* mask_state = malloc(sizeof(struct rosprite_mask_state));
-	if (!mask_state) return ROSPRITE_NOMEM;
-
-	mask_state->x = header->first_used_bit;
-	mask_state->y = 0;
-	mask_state->first_used_bit = header->first_used_bit;
-	mask_state->row_max_bit = sprite->width * sprite->mode.mask_width;
-	mask_state->height = sprite->height;
-	mask_state->bpp = sprite->mode.mask_width;
-	mask_state->current_word = BTUINT(mask);
-	mask_state->current_byte_index = 4;
-
-	*result = mask_state;
-
-	return ROSPRITE_OK;
-}
-
-/* Get the next mask byte.
- * Mask of 0xff denotes 100% opaque, 0x00 denotes 100% transparent
- */
-static uint32_t sprite_next_mask_pixel(uint8_t* mask, struct rosprite_mask_state* mask_state)
-{
-	/* a 1bpp mask (for new mode sprites), each row is word aligned (therefore potential righthand wastage */	
-	const uint32_t bitmask = (1 << mask_state->bpp) - 1;
-	const uint32_t offset_into_word = mask_state->x % 32;
-	uint32_t pixel = (mask_state->current_word & (bitmask << offset_into_word)) >> offset_into_word;
-
-	if (mask_state->x + mask_state->bpp < mask_state->row_max_bit && offset_into_word + mask_state->bpp == 32) {
-		mask_state->current_word = BTUINT((mask + mask_state->current_byte_index));
-		mask_state->current_byte_index += 4;
-	}
-
-	mask_state->x += mask_state->bpp;
-	if (mask_state->x >= mask_state->row_max_bit) {
-		mask_state->x = mask_state->first_used_bit;
-
-		if (mask_state->y + 1 < mask_state->height) {
-			mask_state->current_word = BTUINT((mask + mask_state->current_byte_index));
-			mask_state->current_byte_index += 4;
-		}
-
-		mask_state->y++;
-	}
-
-	/*
-	 * if the mask is 1bpp, make sure the whole byte is 0x00 or 0xff
-	 */
-	if (mask_state->bpp < 8) {
-		pixel = (pixel & 1) ? 0xff : 0x00;
-	}
-
-	return pixel;
-}
-
-static rosprite_error sprite_load_high_color(uint8_t* image_in, uint8_t* mask, struct rosprite* sprite, struct rosprite_header* header)
-{
-	struct rosprite_mask_state* mask_state = NULL;
-	if (sprite->has_mask) {
-		ERRCHK(sprite_init_mask_state(sprite, header, mask, &mask_state));
-	}
-
-	sprite->image = malloc(sprite->width * sprite->height * 4); /* all image data is 32bpp going out */
-
-	uint32_t currentByteIndex = 0;
-	const uint32_t bpp = sprite->mode.colorbpp;
-	const uint32_t bytesPerPixel = bpp / 8;
-	const uint32_t row_max_bit = header->width_words * 32 - (31 - header->last_used_bit); /* Last used bit in row */
-
-	bool has_alpha_pixel_data = false;
-
-	/* Spec says that there must be no left-hand wastage */
-	assert(header->first_used_bit == 0);
-	
-	for (uint32_t y = 0; y < sprite->height; y++) {
-		uint32_t x_pixels = 0;
-		for (uint32_t x = 0; x < row_max_bit; x += bpp) {
-			uint32_t pixel = 0;
-			for (uint32_t j = 0; j < bytesPerPixel; j++) {
-				uint8_t b = image_in[currentByteIndex++];
-				pixel = pixel | (b << (j * 8));
-			}
-			
-			bool old_has_alpha = has_alpha_pixel_data;
-			pixel = sprite_upscale_color(pixel, &(sprite->mode), &has_alpha_pixel_data);
-			if (old_has_alpha != has_alpha_pixel_data) {
-				sprite_fix_alpha(sprite->image, (y * sprite->width) + x_pixels - 1);
-			}
-			if (sprite->has_mask) {
-				uint8_t mask_pixel = sprite_next_mask_pixel(mask, mask_state);
-				pixel = (pixel & 0xffffff00) | mask_pixel;
-			}
-			sprite->image[y*sprite->width + x_pixels] = pixel;
-			x_pixels++;
-		}
-
-		/* Ensure byte index is pointing at start of next row */
-		if (y + 1 < sprite->height) {
-			currentByteIndex = (currentByteIndex + 3) & ~3; /* Round up to next multiple of 4 */
-		}
-	}
-
-	if (sprite->has_mask) free(mask_state);
-	return ROSPRITE_OK;
-}
-
-static rosprite_error sprite_load_low_color(uint8_t* image_in, uint8_t* mask, struct rosprite* sprite, struct rosprite_header* header)
-{
-	struct rosprite_mask_state* mask_state = NULL;
-	if (sprite->has_mask) {
-		ERRCHK(sprite_init_mask_state(sprite, header, mask, &mask_state));
-	}
-
-	sprite->image = malloc(sprite->width * sprite->height * 4); /* all image data is 32bpp going out */
-
-	const uint32_t bpp = sprite->mode.colorbpp;
-	const uint32_t row_max_bit = header->width_words * 32 - (31 - header->last_used_bit); /* Last used bit in row */
-	const uint32_t bitmask = (1 << bpp) - 1; /* creates a mask of 1s that is bpp bits wide */
-
-	uint32_t current_byte_index = 0;
-	uint32_t currentword = BTUINT((image_in + current_byte_index));
-	current_byte_index += 4;
-	
-	for (uint32_t y = 0; y < sprite->height; y++) {
-		uint32_t x_pixels = 0;
-		for (uint32_t x = header->first_used_bit; x < row_max_bit ; x += bpp) {
-			const uint32_t offset_into_word = x % 32;
-
-			uint32_t pixel = (currentword & (bitmask << offset_into_word)) >> offset_into_word;
-			pixel = sprite_palette_lookup(sprite, pixel); /* lookup returns 32bpp */
-			if (sprite->has_mask) {
-				uint8_t mask_pixel = sprite_next_mask_pixel(mask, mask_state);
-				pixel = (pixel & 0xffffff00) | mask_pixel;
-			}
-			sprite->image[y*sprite->width + x_pixels] = pixel;
-			x_pixels++;
-
-			/* If we're not at the end of the row and we've processed all of this word, fetch the next one */
-			if (x + bpp < row_max_bit && offset_into_word + bpp == 32) {
-				currentword = BTUINT((image_in + current_byte_index));
-				current_byte_index += 4;
-			}
-		}
-
-		/* Advance to first word of next row */
-		if (y + 1 < sprite->height) {
-			currentword = BTUINT((image_in + current_byte_index));
-			current_byte_index += 4;
-		}
-	}
-
-	if (sprite->has_mask) free(mask_state);
-
-	return ROSPRITE_OK;
-}
-
-rosprite_error sprite_load_sprite(reader reader, void* ctx, struct rosprite** result)
-{
-	uint32_t nextSpriteOffset;
-	sprite_read_word(reader, ctx, &nextSpriteOffset);
-
-	struct rosprite* sprite = malloc(sizeof(struct rosprite));
-	struct rosprite_header* header = malloc(sizeof(struct rosprite_header));
-
-	reader(sprite->name, 12, ctx);
-	sprite->name[12] = '\0';
-
-	ERRCHK(sprite_read_word(reader, ctx, &header->width_words)); /* file has width - 1 and height - 1 */
-	header->width_words += 1;
-	ERRCHK(sprite_read_word(reader, ctx, &(sprite->height)));
-	sprite->height += 1;
-	ERRCHK(sprite_read_word(reader, ctx, &(header->first_used_bit))); /* old format only (spriteType = 0) */
-	ERRCHK(sprite_read_word(reader, ctx, &(header->last_used_bit)));
-
-	uint32_t imageOffset;
-	ERRCHK(sprite_read_word(reader, ctx, &imageOffset));
-	assert(imageOffset >= 44); /* should never be smaller than the size of the header) */
-
-	uint32_t maskOffset, spriteModeWord;
-	ERRCHK(sprite_read_word(reader, ctx, &maskOffset));
-	ERRCHK(sprite_read_word(reader, ctx, &spriteModeWord));
-
-	ERRCHK(sprite_get_mode(spriteModeWord, &(sprite->mode)));
-
-	/* TODO left-hand wastage */
-	
-	assert((header->last_used_bit + 1) % sprite->mode.colorbpp == 0);
-	/*assert(header->width_words % sprite->mode->colorbpp == 0);*/
-	sprite->width = (header->width_words * 32 - header->first_used_bit - (31 - header->last_used_bit)) / sprite->mode.colorbpp;
-
-	sprite->palettesize     = imageOffset - 44;
-	sprite->has_palette     = (sprite->palettesize > 0);
-
-	/* sprite has no mask if imageOffset == maskOffset */
-	if (imageOffset == maskOffset) {
-		sprite->has_mask   = false;
-		header->image_size = nextSpriteOffset - 44 - sprite->palettesize;
-		header->mask_size  = 0;
-	} else {
-		sprite->has_mask   = true;
-		header->image_size = maskOffset - imageOffset;
-		header->mask_size  = nextSpriteOffset - 44 - sprite->palettesize - header->image_size;
-	}
-	
-	if (sprite->has_palette) {
-		assert(sprite->palettesize % 8 == 0);
-		sprite->palette = malloc(sizeof(uint32_t) * sprite->palettesize);
-		uint32_t paletteEntries = sprite->palettesize / 8;
-
-		/* Each palette entry is two words big
-		 * The second word is a duplicate of the first
-		 * I think this is in case you ever wanted flashing colours
-		 * PRM1-730
-		 */
-		for (uint32_t j = 0; j < paletteEntries; j++) {
-			uint32_t word1, word2;
-			ERRCHK(sprite_read_word(reader, ctx, &word1));
-			ERRCHK(sprite_read_word(reader, ctx, &word2));
-			assert(word1 == word2); /* if they aren't equal, flashing colours are desired, which we don't support */
-			
-			/* swap rr and bb parts -- PRM1-731 */
-			uint32_t entry = ((word1 & 0xff000000) >> 16) | (word1 & 0x00ff0000) | ((word1 & 0x0000ff00) << 16) | 0xff;
-			sprite->palette[j] = entry;
-		}
-	}
-
-	uint8_t* image = malloc(header->image_size);
-	reader(image, header->image_size, ctx);
-
-	uint8_t* mask = NULL;
-	if (sprite->has_mask) {
-		mask = malloc(header->mask_size);
-		reader(mask, header->mask_size, ctx);
-	}
-
-	/* sanity check image_size */
-	assert((header->width_words) * 4 * (sprite->height) == header->image_size);
-	/* TODO: sanity check mask_size */
-	if (sprite->mode.colorbpp > 8) {
-		ERRCHK(sprite_load_high_color(image, mask, sprite, header));
-	} else {
-		ERRCHK(sprite_load_low_color(image, mask, sprite, header));
-	}
-
-	free(image);
-	free(mask);
-	free(header);
-
-	*result = sprite;
-
-	return ROSPRITE_OK;
-}
+static inline rosprite_error rosprite_read_word(reader reader, void* ctx, uint32_t* result);
+static rosprite_error rosprite_get_mode(uint32_t spriteMode, struct rosprite_mode* result);
+static uint32_t rosprite_palette_lookup(struct rosprite* sprite, uint32_t pixel);
+static inline uint32_t rosprite_cmyk_to_rgb(uint32_t cmyk);
+static uint32_t rosprite_next_mask_pixel(uint8_t* mask, struct rosprite_mask_state* mask_state);
+static rosprite_error rosprite_load_high_color(uint8_t* image_in, uint8_t* mask, struct rosprite* sprite, struct rosprite_header* header);
+static rosprite_error rosprite_load_low_color(uint8_t* image_in, uint8_t* mask, struct rosprite* sprite, struct rosprite_header* header);
+rosprite_error rosprite_load_sprite(reader reader, void* ctx, struct rosprite** result);
+static rosprite_error rosprite_init_mask_state(struct rosprite* sprite, struct rosprite_header* header, uint8_t* mask, struct rosprite_mask_state** result);
+static uint32_t rosprite_upscale_color(uint32_t pixel, struct rosprite_mode* mode, bool* has_alpha_pixel_data);
+static inline void rosprite_fix_alpha(uint32_t* image, uint32_t pixels);
 
 rosprite_error rosprite_load(reader reader, void* ctx, struct rosprite_area** result)
 {
 	struct rosprite_area* sprite_area = malloc(sizeof(struct rosprite_area));
 
-	ERRCHK(sprite_read_word(reader, ctx, &(sprite_area->sprite_count)));
+	ERRCHK(rosprite_read_word(reader, ctx, &(sprite_area->sprite_count)));
 
 	uint32_t firstSpriteOffset, firstFreeWordOffset;
-	ERRCHK(sprite_read_word(reader, ctx, &firstSpriteOffset));
-	ERRCHK(sprite_read_word(reader, ctx, &firstFreeWordOffset)); /* TODO: use this for some sanity checking? */
+	ERRCHK(rosprite_read_word(reader, ctx, &firstSpriteOffset));
+	ERRCHK(rosprite_read_word(reader, ctx, &firstFreeWordOffset)); /* TODO: use this for some sanity checking? */
 	sprite_area->extension_size = 16 - firstSpriteOffset;
 
 	sprite_area->extension_words = NULL;
@@ -705,7 +235,7 @@ rosprite_error rosprite_load(reader reader, void* ctx, struct rosprite_area** re
 	sprite_area->sprites = malloc(sizeof(struct rosprite*) * sprite_area->sprite_count); /* allocate array of pointers */
 	for (uint32_t i = 0; i < sprite_area->sprite_count; i++) {
 		struct rosprite* sprite;
-		ERRCHK(sprite_load_sprite(reader, ctx, &sprite));
+		ERRCHK(rosprite_load_sprite(reader, ctx, &sprite));
 		sprite_area->sprites[i] = sprite;
 	}
 
@@ -769,4 +299,489 @@ void rosprite_destroy_palette(struct rosprite_palette* palette)
 {
 	free(palette->palette);
 	free(palette);
+}
+
+rosprite_error rosprite_create_file_context(FILE* f, struct rosprite_file_context** result)
+{
+	struct rosprite_file_context* ctx = malloc(sizeof(struct rosprite_file_context));
+	if (!ctx) return ROSPRITE_NOMEM;
+	ctx->f = f;
+	*result = ctx;
+
+	return ROSPRITE_OK;
+}
+
+void rosprite_destroy_file_context(struct rosprite_file_context* ctx)
+{
+	free(ctx);
+}
+
+int rosprite_file_reader(uint8_t* buf, size_t count, void* ctx)
+{
+	return fread(buf, 1 /*size*/, count, ((struct rosprite_file_context*) ctx)->f);
+}
+
+rosprite_error rosprite_create_mem_context(uint8_t* p, unsigned long total_size, struct rosprite_mem_context** result)
+{
+	struct rosprite_mem_context* ctx = malloc(sizeof(struct rosprite_mem_context));
+	if (!ctx) return ROSPRITE_NOMEM;
+ 
+	ctx->base = p;
+	ctx->offset = 0;
+	ctx->size = total_size;
+	*result = ctx;
+ 
+	return ROSPRITE_OK;
+}
+
+void rosprite_destroy_mem_context(struct rosprite_mem_context* ctx)
+{
+	free(ctx);
+}
+
+int rosprite_mem_reader(uint8_t* buf, size_t count, void* ctx)
+{
+	struct rosprite_mem_context* memctx = (struct rosprite_mem_context*) ctx;
+	if (memctx->offset + count > memctx->size) {
+		return -1;
+	}
+
+	// if we're asked for more memory than the block contains, only copy as much as we can
+	size_t copy_size;
+	if ((memctx->offset + count) > memctx->size) {
+		copy_size = memctx->size - memctx->offset;
+	} else {
+		copy_size = count;
+	}
+	memcpy(buf, memctx->base + memctx->offset, count);
+	memctx->offset += count;
+	return copy_size;
+}
+
+rosprite_error rosprite_load_sprite(reader reader, void* ctx, struct rosprite** result)
+{
+	uint32_t nextSpriteOffset;
+	ERRCHK(rosprite_read_word(reader, ctx, &nextSpriteOffset));
+
+	struct rosprite* sprite = malloc(sizeof(struct rosprite));
+	struct rosprite_header* header = malloc(sizeof(struct rosprite_header));
+
+	reader(sprite->name, 12, ctx);
+	sprite->name[12] = '\0';
+
+	ERRCHK(rosprite_read_word(reader, ctx, &header->width_words)); /* file has width - 1 and height - 1 */
+	header->width_words += 1;
+	ERRCHK(rosprite_read_word(reader, ctx, &(sprite->height)));
+	sprite->height += 1;
+	ERRCHK(rosprite_read_word(reader, ctx, &(header->first_used_bit))); /* old format only (spriteType = 0) */
+	ERRCHK(rosprite_read_word(reader, ctx, &(header->last_used_bit)));
+
+	uint32_t imageOffset;
+	ERRCHK(rosprite_read_word(reader, ctx, &imageOffset));
+	assert(imageOffset >= 44); /* should never be smaller than the size of the header) */
+
+	uint32_t maskOffset, spriteModeWord;
+	ERRCHK(rosprite_read_word(reader, ctx, &maskOffset));
+	ERRCHK(rosprite_read_word(reader, ctx, &spriteModeWord));
+
+	ERRCHK(rosprite_get_mode(spriteModeWord, &(sprite->mode)));
+
+	/* TODO left-hand wastage */
+	
+	assert((header->last_used_bit + 1) % sprite->mode.colorbpp == 0);
+	/*assert(header->width_words % sprite->mode->colorbpp == 0);*/
+	sprite->width = (header->width_words * 32 - header->first_used_bit - (31 - header->last_used_bit)) / sprite->mode.colorbpp;
+
+	sprite->palettesize     = imageOffset - 44;
+	sprite->has_palette     = (sprite->palettesize > 0);
+
+	/* sprite has no mask if imageOffset == maskOffset */
+	if (imageOffset == maskOffset) {
+		sprite->has_mask   = false;
+		header->image_size = nextSpriteOffset - 44 - sprite->palettesize;
+		header->mask_size  = 0;
+	} else {
+		sprite->has_mask   = true;
+		header->image_size = maskOffset - imageOffset;
+		header->mask_size  = nextSpriteOffset - 44 - sprite->palettesize - header->image_size;
+	}
+	
+	if (sprite->has_palette) {
+		assert(sprite->palettesize % 8 == 0);
+		sprite->palette = malloc(sizeof(uint32_t) * sprite->palettesize);
+		uint32_t paletteEntries = sprite->palettesize / 8;
+
+		/* Each palette entry is two words big
+		 * The second word is a duplicate of the first
+		 * I think this is in case you ever wanted flashing colours
+		 * PRM1-730
+		 */
+		for (uint32_t j = 0; j < paletteEntries; j++) {
+			uint32_t word1, word2;
+			ERRCHK(rosprite_read_word(reader, ctx, &word1));
+			ERRCHK(rosprite_read_word(reader, ctx, &word2));
+			assert(word1 == word2); /* if they aren't equal, flashing colours are desired, which we don't support */
+			
+			/* swap rr and bb parts -- PRM1-731 */
+			uint32_t entry = ((word1 & 0xff000000) >> 16) | (word1 & 0x00ff0000) | ((word1 & 0x0000ff00) << 16) | 0xff;
+			sprite->palette[j] = entry;
+		}
+	}
+
+	uint8_t* image = malloc(header->image_size);
+	reader(image, header->image_size, ctx);
+
+	uint8_t* mask = NULL;
+	if (sprite->has_mask) {
+		mask = malloc(header->mask_size);
+		reader(mask, header->mask_size, ctx);
+	}
+
+	/* sanity check image_size */
+	assert((header->width_words) * 4 * (sprite->height) == header->image_size);
+	/* TODO: sanity check mask_size */
+	if (sprite->mode.colorbpp > 8) {
+		ERRCHK(rosprite_load_high_color(image, mask, sprite, header));
+	} else {
+		ERRCHK(rosprite_load_low_color(image, mask, sprite, header));
+	}
+
+	free(image);
+	free(mask);
+	free(header);
+
+	*result = sprite;
+
+	return ROSPRITE_OK;
+}
+
+static rosprite_error rosprite_get_mode(uint32_t spriteMode, struct rosprite_mode* result)
+{
+	struct rosprite_mode mode;
+
+	uint32_t spriteType = (spriteMode & 0x78000000) >> 27; /* preserve bits 27-30 only */
+
+	if (spriteType != 0) {
+		bool hasEightBitAlpha = (spriteMode & 0x80000000) >> 31; /* bit 31 */
+		/* new modes have 1bpp masks (PRM5a-111)
+		 * unless bit 31 is set (http://select.riscos.com/prm/graphics/sprites/alphachannel.html)
+		 */
+		mode.maskbpp = (hasEightBitAlpha ? 8 : 1);
+		mode.mask_width = mode.maskbpp;
+		mode.xdpi = (spriteMode & 0x07ffc000) >> 14; /* preserve bits 14-26 only */
+		mode.ydpi = (spriteMode & 0x00003ffe) >> 1; /* preserve bits 1-13 only */
+
+		mode.color_model = ROSPRITE_RGB;
+		switch (spriteType) {
+		case 1:
+			mode.colorbpp = 1; break;
+		case 2:
+			mode.colorbpp = 2; break;
+		case 3:
+			mode.colorbpp = 4; break;
+		case 4:
+			mode.colorbpp = 8; break;
+		case 5:
+			mode.colorbpp = 16; break;
+		case 6:
+			mode.colorbpp = 32; break;
+		case 7:
+			mode.colorbpp = 32;
+			mode.color_model = ROSPRITE_CMYK;
+			break;
+		case 8:
+			mode.colorbpp = 24; break;
+		default:
+			return ROSPRITE_BADMODE;
+		}
+	} else {
+		assert(spriteMode < 256); /* don't think you can have modes over 255? */
+
+		mode = oldmodes[spriteMode];
+	}
+
+	/* illegal mode check */
+	if ((mode.colorbpp == 0) || (mode.xdpi == 0) || (mode.ydpi == 0)) {
+		return ROSPRITE_BADMODE;
+	}
+
+	memcpy(result, &mode, sizeof(struct rosprite_mode));
+
+	return ROSPRITE_OK;
+}
+
+static rosprite_error rosprite_load_high_color(uint8_t* image_in, uint8_t* mask, struct rosprite* sprite, struct rosprite_header* header)
+{
+	struct rosprite_mask_state* mask_state = NULL;
+	if (sprite->has_mask) {
+		ERRCHK(rosprite_init_mask_state(sprite, header, mask, &mask_state));
+	}
+
+	sprite->image = malloc(sprite->width * sprite->height * 4); /* all image data is 32bpp going out */
+
+	uint32_t currentByteIndex = 0;
+	const uint32_t bpp = sprite->mode.colorbpp;
+	const uint32_t bytesPerPixel = bpp / 8;
+	const uint32_t row_max_bit = header->width_words * 32 - (31 - header->last_used_bit); /* Last used bit in row */
+
+	bool has_alpha_pixel_data = false;
+
+	/* Spec says that there must be no left-hand wastage */
+	assert(header->first_used_bit == 0);
+	
+	for (uint32_t y = 0; y < sprite->height; y++) {
+		uint32_t x_pixels = 0;
+		for (uint32_t x = 0; x < row_max_bit; x += bpp) {
+			uint32_t pixel = 0;
+			for (uint32_t j = 0; j < bytesPerPixel; j++) {
+				uint8_t b = image_in[currentByteIndex++];
+				pixel = pixel | (b << (j * 8));
+			}
+			
+			bool old_has_alpha = has_alpha_pixel_data;
+			pixel = rosprite_upscale_color(pixel, &(sprite->mode), &has_alpha_pixel_data);
+			if (old_has_alpha != has_alpha_pixel_data) {
+				rosprite_fix_alpha(sprite->image, (y * sprite->width) + x_pixels - 1);
+			}
+			if (sprite->has_mask) {
+				uint8_t mask_pixel = rosprite_next_mask_pixel(mask, mask_state);
+				pixel = (pixel & 0xffffff00) | mask_pixel;
+			}
+			sprite->image[y*sprite->width + x_pixels] = pixel;
+			x_pixels++;
+		}
+
+		/* Ensure byte index is pointing at start of next row */
+		if (y + 1 < sprite->height) {
+			currentByteIndex = (currentByteIndex + 3) & ~3; /* Round up to next multiple of 4 */
+		}
+	}
+
+	if (sprite->has_mask) free(mask_state);
+	return ROSPRITE_OK;
+}
+
+static inline void rosprite_fix_alpha(uint32_t* image, uint32_t pixels)
+{
+	for (uint32_t i = 0; i <= pixels; i++) {
+		image[i] = image[i] & 0xffffff00;
+	}
+}
+
+static rosprite_error rosprite_load_low_color(uint8_t* image_in, uint8_t* mask, struct rosprite* sprite, struct rosprite_header* header)
+{
+	struct rosprite_mask_state* mask_state = NULL;
+	if (sprite->has_mask) {
+		ERRCHK(rosprite_init_mask_state(sprite, header, mask, &mask_state));
+	}
+
+	sprite->image = malloc(sprite->width * sprite->height * 4); /* all image data is 32bpp going out */
+
+	const uint32_t bpp = sprite->mode.colorbpp;
+	const uint32_t row_max_bit = header->width_words * 32 - (31 - header->last_used_bit); /* Last used bit in row */
+	const uint32_t bitmask = (1 << bpp) - 1; /* creates a mask of 1s that is bpp bits wide */
+
+	uint32_t current_byte_index = 0;
+	uint32_t currentword = BTUINT((image_in + current_byte_index));
+	current_byte_index += 4;
+	
+	for (uint32_t y = 0; y < sprite->height; y++) {
+		uint32_t x_pixels = 0;
+		for (uint32_t x = header->first_used_bit; x < row_max_bit ; x += bpp) {
+			const uint32_t offset_into_word = x % 32;
+
+			uint32_t pixel = (currentword & (bitmask << offset_into_word)) >> offset_into_word;
+			pixel = rosprite_palette_lookup(sprite, pixel); /* lookup returns 32bpp */
+			if (sprite->has_mask) {
+				uint8_t mask_pixel = rosprite_next_mask_pixel(mask, mask_state);
+				pixel = (pixel & 0xffffff00) | mask_pixel;
+			}
+			sprite->image[y*sprite->width + x_pixels] = pixel;
+			x_pixels++;
+
+			/* If we're not at the end of the row and we've processed all of this word, fetch the next one */
+			if (x + bpp < row_max_bit && offset_into_word + bpp == 32) {
+				currentword = BTUINT((image_in + current_byte_index));
+				current_byte_index += 4;
+			}
+		}
+
+		/* Advance to first word of next row */
+		if (y + 1 < sprite->height) {
+			currentword = BTUINT((image_in + current_byte_index));
+			current_byte_index += 4;
+		}
+	}
+
+	if (sprite->has_mask) free(mask_state);
+
+	return ROSPRITE_OK;
+}
+
+static uint32_t rosprite_palette_lookup(struct rosprite* sprite, uint32_t pixel)
+{
+	uint32_t translated_pixel;
+	 /* because we're dealing with 8bpp or less */
+	if (sprite->has_palette) {
+		assert(pixel <= sprite->palettesize); /* TODO: what to do if your color depth is bigger than palette? */
+		translated_pixel = sprite->palette[pixel];
+	} else {
+		switch (sprite->mode.colorbpp) {
+		case 8:
+			assert(pixel < 256);
+			translated_pixel = sprite_8bpp_palette[pixel];
+			break;
+		case 4:
+			assert(pixel < 16);
+			translated_pixel = sprite_4bpp_palette[pixel];
+			break;
+		case 2:
+			assert(pixel < 4);
+			translated_pixel = sprite_2bpp_palette[pixel];
+			break;
+		case 1:
+			assert(pixel < 2);
+			translated_pixel = sprite_1bpp_palette[pixel];
+			break;
+		default:
+			assert(false);
+		}
+	}
+	return translated_pixel;
+}
+
+static rosprite_error rosprite_init_mask_state(struct rosprite* sprite, struct rosprite_header* header, uint8_t* mask, struct rosprite_mask_state** result)
+{
+	struct rosprite_mask_state* mask_state = malloc(sizeof(struct rosprite_mask_state));
+	if (!mask_state) return ROSPRITE_NOMEM;
+
+	mask_state->x = header->first_used_bit;
+	mask_state->y = 0;
+	mask_state->first_used_bit = header->first_used_bit;
+	mask_state->row_max_bit = sprite->width * sprite->mode.mask_width;
+	mask_state->height = sprite->height;
+	mask_state->bpp = sprite->mode.mask_width;
+	mask_state->current_word = BTUINT(mask);
+	mask_state->current_byte_index = 4;
+
+	*result = mask_state;
+
+	return ROSPRITE_OK;
+}
+
+/* Get the next mask byte.
+ * Mask of 0xff denotes 100% opaque, 0x00 denotes 100% transparent
+ */
+static uint32_t rosprite_next_mask_pixel(uint8_t* mask, struct rosprite_mask_state* mask_state)
+{
+	/* a 1bpp mask (for new mode sprites), each row is word aligned (therefore potential righthand wastage */	
+	const uint32_t bitmask = (1 << mask_state->bpp) - 1;
+	const uint32_t offset_into_word = mask_state->x % 32;
+	uint32_t pixel = (mask_state->current_word & (bitmask << offset_into_word)) >> offset_into_word;
+
+	if (mask_state->x + mask_state->bpp < mask_state->row_max_bit && offset_into_word + mask_state->bpp == 32) {
+		mask_state->current_word = BTUINT((mask + mask_state->current_byte_index));
+		mask_state->current_byte_index += 4;
+	}
+
+	mask_state->x += mask_state->bpp;
+	if (mask_state->x >= mask_state->row_max_bit) {
+		mask_state->x = mask_state->first_used_bit;
+
+		if (mask_state->y + 1 < mask_state->height) {
+			mask_state->current_word = BTUINT((mask + mask_state->current_byte_index));
+			mask_state->current_byte_index += 4;
+		}
+
+		mask_state->y++;
+	}
+
+	/*
+	 * if the mask is 1bpp, make sure the whole byte is 0x00 or 0xff
+	 */
+	if (mask_state->bpp < 8) {
+		pixel = (pixel & 1) ? 0xff : 0x00;
+	}
+
+	return pixel;
+}
+
+static uint32_t rosprite_upscale_color(uint32_t pixel, struct rosprite_mode* mode, bool* has_alpha_pixel_data)
+{
+	switch (mode->colorbpp) {
+	case 32:
+		if (mode->color_model == ROSPRITE_RGB) {
+			/* swap from 0xAABBGGRR to 0xRRGGBBAA */
+			pixel = BSWAP(pixel);
+
+			uint8_t alpha = pixel & 0xff;
+			if (alpha == 0x00) {
+				if (!(*has_alpha_pixel_data)) {
+					pixel = pixel | 0xff;
+				}
+			} else {
+				*has_alpha_pixel_data = true;
+			}
+			return pixel;
+		} else {
+			return rosprite_cmyk_to_rgb(pixel);
+		}
+	case 24:
+		/* reverse byte order */
+		return BSWAP(pixel);
+	case 16:
+		/* incoming format is b_00000000000000000bbbbbgggggrrrrr */
+		{
+			uint8_t red   = pixel & 31;
+			uint8_t green = (pixel & (31 << 5)) >> 5;
+			uint8_t blue  = (pixel & (31 << 10)) >> 10;
+
+			/* sanity check */
+			assert(red < 32);
+			assert(green < 32);
+			assert(blue < 32);
+
+			pixel =   (sprite_16bpp_translate[red] << 24)
+					| (sprite_16bpp_translate[green] << 16)
+					| (sprite_16bpp_translate[blue] << 8);
+		return pixel;
+		}
+	case 8:
+	case 4:
+	case 2:
+	case 1:
+		assert(false); /* shouldn't need to call for <= 8bpp, since a palette lookup will return 32bpp */
+	default:
+		assert(false); /* unknown bpp */
+	}
+}
+
+static inline uint32_t rosprite_cmyk_to_rgb(uint32_t cmyk)
+{
+        uint8_t c = cmyk & 0xff;
+        uint8_t m = (cmyk & 0xff00) >> 8;
+        uint8_t y = (cmyk & 0xff0000) >> 16;
+        uint8_t k = cmyk >> 24;
+ 
+        /* Convert to CMY colourspace */
+        uint8_t C = c + k;
+        uint8_t M = m + k;
+        uint8_t Y = y + k;
+ 
+        /* And to RGB */
+        uint8_t r = 255 - C;
+        uint8_t g = 255 - M;
+        uint8_t b = 255 - Y;
+ 
+        return r << 24 | g << 16 | b << 8;
+}
+
+static inline rosprite_error rosprite_read_word(reader reader, void* ctx, uint32_t* result)
+{
+	unsigned char b[4];
+	if (reader(b, 4, ctx) < 4) {
+		return ROSPRITE_EOF;
+	}
+	*result = BTUINT(b);
+	return ROSPRITE_OK;
 }
