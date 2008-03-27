@@ -1,3 +1,7 @@
+/**
+ * \file
+ */
+
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -27,8 +31,16 @@ struct rosprite_header {
 	/* height defined in sprite struct */
 	uint32_t first_used_bit; /* old format only (spriteType = 0) */
 	uint32_t last_used_bit;
-	uint32_t image_size; /* bytes */
-	uint32_t mask_size; /* bytes */
+
+	/**
+	 * Image size in bytes
+	 */
+	uint32_t image_size;
+
+	/**
+	 * Mask size in bytes
+	 */
+	uint32_t mask_size;
 };
 
 struct rosprite_mask_state {
@@ -119,7 +131,7 @@ static const uint8_t sprite_16bpp_translate[] = {
 };
 
 /* palettes generated with palette2c.c
- * which in turn requires sprite_load_palette(FILE* f)
+ * which in turn requires rosprite_load_palette(FILE* f)
  * defined in this file
  */
 static const uint32_t sprite_1bpp_palette[] = { 0xffffffff, 0xff };
@@ -210,7 +222,7 @@ static rosprite_error rosprite_load_low_color(uint8_t* image_in, uint8_t* mask, 
 rosprite_error rosprite_load_sprite(reader reader, void* ctx, struct rosprite** result);
 static rosprite_error rosprite_init_mask_state(struct rosprite* sprite, struct rosprite_header* header, uint8_t* mask, struct rosprite_mask_state** result);
 static uint32_t rosprite_upscale_color(uint32_t pixel, struct rosprite_mode* mode, bool* has_alpha_pixel_data);
-static inline void rosprite_fix_alpha(uint32_t* image, uint32_t pixels);
+static inline void rosprite_fix_alpha(uint32_t* image, unsigned long pixels);
 
 rosprite_error rosprite_load(reader reader, void* ctx, struct rosprite_area** result)
 {
@@ -358,6 +370,11 @@ int rosprite_mem_reader(uint8_t* buf, size_t count, void* ctx)
 	return copy_size;
 }
 
+/**
+ * Load a single sprite.
+ *
+ * \param[out] result
+ */
 rosprite_error rosprite_load_sprite(reader reader, void* ctx, struct rosprite** result)
 {
 	uint32_t nextSpriteOffset;
@@ -455,21 +472,26 @@ rosprite_error rosprite_load_sprite(reader reader, void* ctx, struct rosprite** 
 	return ROSPRITE_OK;
 }
 
-static rosprite_error rosprite_get_mode(uint32_t spriteMode, struct rosprite_mode* result)
+/**
+ * Determine the sprite_mode for the specified sprite_mode_word.
+ *
+ * \param[out] result
+ */
+static rosprite_error rosprite_get_mode(uint32_t sprite_mode_word, struct rosprite_mode* result)
 {
 	struct rosprite_mode mode;
 
-	uint32_t spriteType = (spriteMode & 0x78000000) >> 27; /* preserve bits 27-30 only */
+	uint32_t spriteType = (sprite_mode_word & 0x78000000) >> 27; /* preserve bits 27-30 only */
 
 	if (spriteType != 0) {
-		bool hasEightBitAlpha = (spriteMode & 0x80000000) >> 31; /* bit 31 */
+		bool hasEightBitAlpha = (sprite_mode_word & 0x80000000) >> 31; /* bit 31 */
 		/* new modes have 1bpp masks (PRM5a-111)
 		 * unless bit 31 is set (http://select.riscos.com/prm/graphics/sprites/alphachannel.html)
 		 */
 		mode.maskbpp = (hasEightBitAlpha ? 8 : 1);
 		mode.mask_width = mode.maskbpp;
-		mode.xdpi = (spriteMode & 0x07ffc000) >> 14; /* preserve bits 14-26 only */
-		mode.ydpi = (spriteMode & 0x00003ffe) >> 1; /* preserve bits 1-13 only */
+		mode.xdpi = (sprite_mode_word & 0x07ffc000) >> 14; /* preserve bits 14-26 only */
+		mode.ydpi = (sprite_mode_word & 0x00003ffe) >> 1; /* preserve bits 1-13 only */
 
 		mode.color_model = ROSPRITE_RGB;
 		switch (spriteType) {
@@ -495,9 +517,9 @@ static rosprite_error rosprite_get_mode(uint32_t spriteMode, struct rosprite_mod
 			return ROSPRITE_BADMODE;
 		}
 	} else {
-		assert(spriteMode < 256); /* don't think you can have modes over 255? */
+		assert(sprite_mode_word < 256); /* don't think you can have modes over 255? */
 
-		mode = oldmodes[spriteMode];
+		mode = oldmodes[sprite_mode_word];
 	}
 
 	/* illegal mode check */
@@ -510,6 +532,11 @@ static rosprite_error rosprite_get_mode(uint32_t spriteMode, struct rosprite_mod
 	return ROSPRITE_OK;
 }
 
+/**
+ * Load a sprite image with 16 or more bpp.
+ *
+ * \param[out] sprite On exit, sprite.image will be populated
+ */
 static rosprite_error rosprite_load_high_color(uint8_t* image_in, uint8_t* mask, struct rosprite* sprite, struct rosprite_header* header)
 {
 	struct rosprite_mask_state* mask_state = NULL;
@@ -561,13 +588,22 @@ static rosprite_error rosprite_load_high_color(uint8_t* image_in, uint8_t* mask,
 	return ROSPRITE_OK;
 }
 
-static inline void rosprite_fix_alpha(uint32_t* image, uint32_t pixels)
+/**
+ * Iterate over the specified number of pixels, starting at the image pointer,
+ * and set the alpha channel to 0x00.
+ */
+static inline void rosprite_fix_alpha(uint32_t* image, unsigned long pixels)
 {
 	for (uint32_t i = 0; i <= pixels; i++) {
 		image[i] = image[i] & 0xffffff00;
 	}
 }
 
+/**
+ * Load a sprite image with 8 or fewer bpp.
+ *
+ * \param[out] sprite On exit, sprite.image will be populated
+ */
 static rosprite_error rosprite_load_low_color(uint8_t* image_in, uint8_t* mask, struct rosprite* sprite, struct rosprite_header* header)
 {
 	struct rosprite_mask_state* mask_state = NULL;
@@ -669,8 +705,11 @@ static rosprite_error rosprite_init_mask_state(struct rosprite* sprite, struct r
 	return ROSPRITE_OK;
 }
 
-/* Get the next mask byte.
- * Mask of 0xff denotes 100% opaque, 0x00 denotes 100% transparent
+/**
+ * Get the next mask byte.
+ * A mask of 0xff denotes 100% opaque, 0x00 denotes 100% transparent.
+ * 
+ * \param[in,out] mask_state
  */
 static uint32_t rosprite_next_mask_pixel(uint8_t* mask, struct rosprite_mask_state* mask_state)
 {
@@ -706,6 +745,11 @@ static uint32_t rosprite_next_mask_pixel(uint8_t* mask, struct rosprite_mask_sta
 	return pixel;
 }
 
+/**
+ * Upscale a 16, 24 or 32bpp sprite to the 0xRRGGBBAA representation.
+ * Do not call this function with a sprite with less than 16bpp,
+ * but use a palette lookup instead.
+ */
 static uint32_t rosprite_upscale_color(uint32_t pixel, struct rosprite_mode* mode, bool* has_alpha_pixel_data)
 {
 	switch (mode->colorbpp) {

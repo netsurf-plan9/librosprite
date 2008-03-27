@@ -1,3 +1,10 @@
+/**
+ * \file
+ * A test harness using SDL to display all sprites in a sprite file.
+ *
+ * Usage: example \<spritefile\>
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <SDL/SDL.h>
