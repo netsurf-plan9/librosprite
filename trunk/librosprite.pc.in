@@ -1,0 +1,10 @@
+prefix=PREFIX
+exec_prefix=${prefix}
+libdir=${exec_prefix}/lib
+includedir=${prefix}/include
+
+Name: librosprite
+Description: Loads RISC OS sprite files
+Version: 0.0.1
+Libs: -L${libdir} -lrosprite
+Cflags: -I${includedir}
