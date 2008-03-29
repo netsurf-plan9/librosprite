@@ -19,12 +19,7 @@ LDFLAGS = -L./
 # Installation prefix, if not already defined (e.g. on command line)
 PREFIX ?= /usr/local
 
-.PHONY: all clean docs install
-
-# Installation prefix, if not already defined (e.g. on command line)
-PREFIX ?= /usr/local
-
-.PHONY: all clean docs install
+.PHONY: all clean docs install uninstall
 
 all: example palette2c
 
@@ -56,3 +51,7 @@ install: librosprite.a
 	$(SED) -e 's#PREFIX#$(PREFIX)#' librosprite.pc.in > librosprite.pc
 	$(INSTALL) --mode=644 -t $(PREFIX)/lib/pkgconfig librosprite.pc
 
+uninstall:
+	rm $(PREFIX)/lib/librosprite.a
+	rm $(PREFIX)/include/librosprite.h
+	rm $(PREFIX)/lib/pkgconfig/librosprite.pc
