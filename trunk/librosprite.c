@@ -481,17 +481,17 @@ static rosprite_error rosprite_get_mode(uint32_t sprite_mode_word, struct rospri
 {
 	struct rosprite_mode mode;
 
-	uint32_t spriteType = (sprite_mode_word & 0x78000000) >> 27; /* preserve bits 27-30 only */
+	uint32_t spriteType = (sprite_mode_word & (15 << 27)) >> 27; /* preserve bits 27-30 only */
 
 	if (spriteType != 0) {
-		bool hasEightBitAlpha = (sprite_mode_word & 0x80000000) >> 31; /* bit 31 */
+		bool hasEightBitAlpha = sprite_mode_word >> 31; /* bit 31 */
 		/* new modes have 1bpp masks (PRM5a-111)
 		 * unless bit 31 is set (http://select.riscos.com/prm/graphics/sprites/alphachannel.html)
 		 */
 		mode.maskbpp = (hasEightBitAlpha ? 8 : 1);
 		mode.mask_width = mode.maskbpp;
-		mode.xdpi = (sprite_mode_word & 0x07ffc000) >> 14; /* preserve bits 14-26 only */
-		mode.ydpi = (sprite_mode_word & 0x00003ffe) >> 1; /* preserve bits 1-13 only */
+		mode.xdpi = (sprite_mode_word & (8191 << 14)) >> 14; /* preserve bits 14-26 only */
+		mode.ydpi = (sprite_mode_word & (8191 << 1)) >> 1; /* preserve bits 1-13 only */
 
 		mode.color_model = ROSPRITE_RGB;
 		switch (spriteType) {
@@ -757,22 +757,14 @@ static uint32_t rosprite_upscale_color(uint32_t pixel, struct rosprite_mode* mod
 		if (mode->color_model == ROSPRITE_RGB) {
 			/* swap from 0xAABBGGRR to 0xRRGGBBAA */
 			pixel = BSWAP(pixel);
-
-			uint8_t alpha = pixel & 0xff;
-			if (alpha == 0x00) {
-				if (!(*has_alpha_pixel_data)) {
-					pixel = pixel | 0xff;
-				}
-			} else {
-				*has_alpha_pixel_data = true;
-			}
-			return pixel;
 		} else {
-			return rosprite_cmyk_to_rgb(pixel);
+			pixel = rosprite_cmyk_to_rgb(pixel);
 		}
+		break;
 	case 24:
 		/* reverse byte order */
-		return BSWAP(pixel);
+		pixel = BSWAP(pixel);
+		break;
 	case 16:
 		/* incoming format is b_00000000000000000bbbbbgggggrrrrr */
 		{
@@ -788,8 +780,8 @@ static uint32_t rosprite_upscale_color(uint32_t pixel, struct rosprite_mode* mod
 			pixel =   (sprite_16bpp_translate[red] << 24)
 					| (sprite_16bpp_translate[green] << 16)
 					| (sprite_16bpp_translate[blue] << 8);
-		return pixel;
 		}
+		break;
 	case 8:
 	case 4:
 	case 2:
@@ -798,6 +790,16 @@ static uint32_t rosprite_upscale_color(uint32_t pixel, struct rosprite_mode* mod
 	default:
 		assert(false); /* unknown bpp */
 	}
+
+	uint8_t alpha = pixel & 0xff;
+	if (alpha == 0x00) {
+		if (!(*has_alpha_pixel_data)) {
+			pixel = pixel | 0xff;
+		}
+	} else {
+		*has_alpha_pixel_data = true;
+	}
+	return pixel;
 }
 
 static inline uint32_t rosprite_cmyk_to_rgb(uint32_t cmyk)
