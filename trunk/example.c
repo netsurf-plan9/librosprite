@@ -1,3 +1,10 @@
+/*
+ * This file is part of librosprite.
+ * Licensed under the MIT License,
+ *                http://www.opensource.org/licenses/mit-license.php
+ * Copyright 2008 James Shaw <js102@zepler.net>
+ */
+
 /**
  * \file
  * A test harness using SDL to display all sprites in a sprite file.
