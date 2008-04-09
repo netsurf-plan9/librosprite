@@ -5,35 +5,42 @@ DOXYGEN = doxygen
 INSTALL = install
 SED = sed
 MKDIR = mkdir
+PKG_CONFIG = pkg-config
 
 ARFLAGS = -cru
-CFLAGS = -Wall -Wextra -Wundef -Wpointer-arith -Wcast-align \
+CFLAGS = -g -Wall -Wextra -Wundef -Wpointer-arith -Wcast-align \
 	-Wwrite-strings -Wstrict-prototypes \
 	-Wnested-externs -Werror -pedantic -std=c99 \
 	-Wno-format-zero-length -Wformat-security -Wstrict-aliasing=2 \
 	-Wmissing-format-attribute -Wunused -Wunreachable-code \
 	-Wformat=2 -Werror-implicit-function-declaration \
 	-Wmissing-declarations -Wmissing-prototypes
-LDFLAGS = -L./
+LDFLAGS = -g -L./
 
 # Installation prefix, if not already defined (e.g. on command line)
 PREFIX ?= /usr/local
+DESTDIR ?=
 
 .PHONY: all clean docs install uninstall
 
-all: example palette2c
+all: librosprite.a
 
 example: librosprite.a example.o
-	${LD} -g -o $@ example.o ${LDFLAGS} -lrosprite -lSDL
+	${LD} -o $@ example.o ${LDFLAGS} \
+		$(shell PKG_CONFIG_PATH=.:$(PKG_CONFIG_PATH) $(PKG_CONFIG) --cflags --libs sdl librosprite)
 
 palette2c: librosprite.a palette2c.o
-	${LD} -g -o $@ palette2c.o ${LDFLAGS} -lrosprite
+	${LD} -o $@ palette2c.o ${LDFLAGS} \
+		$(shell PKG_CONFIG_PATH=.:$(PKG_CONFIG_PATH) $(PKG_CONFIG) --cflags --libs librosprite)
 
-librosprite.a: librosprite.o
+librosprite.a: librosprite.o librosprite.pc
 	${AR} ${ARFLAGS} librosprite.a librosprite.o
 
+librosprite.pc: librosprite.pc.in
+	$(SED) -e 's#PREFIX#$(PREFIX)#' librosprite.pc.in > librosprite.pc
+
 %.o: %.c
-	${CC} -c -g ${CFLAGS} -o $@ $<
+	${CC} -c ${CFLAGS} -o $@ $<
 
 docs:
 	${DOXYGEN}
@@ -42,16 +49,15 @@ clean:
 	rm -f $(wildcard *.o) $(wildcard *.a) example palette2c librosprite.pc
 	rm -rf doc
 
-install: librosprite.a
-	$(MKDIR) -p $(PREFIX)/lib/pkgconfig
-	$(MKDIR) -p $(PREFIX)/lib
-	$(MKDIR) -p $(PREFIX)/include
-	$(INSTALL) --mode=644 -t $(PREFIX)/lib librosprite.a
-	$(INSTALL) --mode=644 -t $(PREFIX)/include librosprite.h
-	$(SED) -e 's#PREFIX#$(PREFIX)#' librosprite.pc.in > librosprite.pc
-	$(INSTALL) --mode=644 -t $(PREFIX)/lib/pkgconfig librosprite.pc
+install: librosprite.a librosprite.pc
+	$(MKDIR) -p $(DESTDIR)$(PREFIX)/lib/pkgconfig
+	$(MKDIR) -p $(DESTDIR)$(PREFIX)/lib
+	$(MKDIR) -p $(DESTDIR)$(PREFIX)/include
+	$(INSTALL) --mode=644 -t $(DESTDIR)$(PREFIX)/lib librosprite.a
+	$(INSTALL) --mode=644 -t $(DESTDIR)$(PREFIX)/include librosprite.h
+	$(INSTALL) --mode=644 -t $(DESTDIR)$(PREFIX)/lib/pkgconfig librosprite.pc
 
 uninstall:
-	rm $(PREFIX)/lib/librosprite.a
-	rm $(PREFIX)/include/librosprite.h
-	rm $(PREFIX)/lib/pkgconfig/librosprite.pc
+	rm $(DESTDIR)$(PREFIX)/lib/librosprite.a
+	rm $(DESTDIR)$(PREFIX)/include/librosprite.h
+	rm $(DESTDIR)$(PREFIX)/lib/pkgconfig/librosprite.pc
