@@ -574,7 +574,7 @@ static rosprite_error rosprite_load_high_color(uint8_t* image_in, uint8_t* mask,
 			
 			bool old_has_alpha = has_alpha_pixel_data;
 			pixel = rosprite_upscale_color(pixel, &(sprite->mode), &has_alpha_pixel_data);
-			if (old_has_alpha != has_alpha_pixel_data) {
+			if (old_has_alpha != has_alpha_pixel_data && (y > 0 || x_pixels > 0)) {
 				rosprite_fix_alpha(sprite->image, (y * sprite->width) + x_pixels - 1);
 			}
 			if (sprite->has_mask) {
