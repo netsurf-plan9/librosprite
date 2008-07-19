@@ -33,13 +33,17 @@ int main(int argc, char *argv[])
 
 	if ( SDL_Init(SDL_INIT_VIDEO) < 0 ) {
 		fprintf(stderr, "Unable to init SDL: %s\n", SDL_GetError());
-		exit(1);
+		exit(EXIT_FAILURE);
 	}
 	atexit(SDL_Quit);
 
 	char* filename = argv[1];
 	void* ctx;
-	create_file_context(filename, &ctx);
+	if (create_file_context(filename, &ctx) < 0) {
+		fprintf(stderr, "Unable to create file reader context\n");
+		exit(EXIT_FAILURE);
+	}
+	
 	printf("Loading %s\n", filename);
 
 	struct rosprite_area* sprite_area;
@@ -54,7 +58,7 @@ int main(int argc, char *argv[])
 	screen = SDL_SetVideoMode(800, 600, 32, SDL_ANYFORMAT);
 	SDL_SetAlpha(screen, SDL_SRCALPHA, 0);
 
-	for (uint32_t i = 0; i < sprite_area->sprite_count; i++) {
+	for (unsigned int i = 0; i < sprite_area->sprite_count; i++) {
 		struct rosprite* sprite = sprite_area->sprites[i];
 		printf("\nname %s\n", sprite->name);
 		printf("color_model %s\n", sprite->mode.color_model == ROSPRITE_RGB ? "RGB" : "CMYK");
