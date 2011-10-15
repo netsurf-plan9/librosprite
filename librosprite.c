@@ -687,7 +687,7 @@ static uint32_t rosprite_palette_lookup(struct rosprite* sprite, uint32_t pixel)
 	 /* because we're dealing with 8bpp or less */
 	if (sprite->has_palette) {
 
-		if(pixel <= (sprite->palettesize/8)) {
+		if(pixel < (sprite->palettesize / 8)) {
 			translated_pixel = sprite->palette[pixel];
 		} else {
 			translated_pixel = sprite_8bpp_palette[pixel];
