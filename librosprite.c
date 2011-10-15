@@ -686,8 +686,12 @@ static uint32_t rosprite_palette_lookup(struct rosprite* sprite, uint32_t pixel)
 	uint32_t translated_pixel;
 	 /* because we're dealing with 8bpp or less */
 	if (sprite->has_palette) {
-		assert(pixel <= sprite->palettesize); /* TODO: what to do if your color depth is bigger than palette? */
-		translated_pixel = sprite->palette[pixel];
+
+		if(pixel <= (sprite->palettesize/8)) {
+			translated_pixel = sprite->palette[pixel];
+		} else {
+			translated_pixel = sprite_8bpp_palette[pixel];
+		}
 	} else {
 		switch (sprite->mode.colorbpp) {
 		case 8:
