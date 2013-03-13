@@ -368,19 +368,18 @@ void rosprite_destroy_mem_context(struct rosprite_mem_context* ctx)
 int rosprite_mem_reader(uint8_t* buf, size_t count, void* ctx)
 {
 	size_t copy_size;
-	struct rosprite_mem_context* memctx = (struct rosprite_mem_context*) ctx;
-	if (memctx->offset + count > memctx->size) {
-		return -1;
-	}
+	struct rosprite_mem_context* memctx = ctx;
 
-	// if we're asked for more memory than the block contains, only copy as much as we can
+	/* if we're asked for more memory than the block contains,
+	 * only copy as much as we can 
+	 */
 	if ((memctx->offset + count) > memctx->size) {
 		copy_size = memctx->size - memctx->offset;
 	} else {
 		copy_size = count;
 	}
-	memcpy(buf, memctx->base + memctx->offset, count);
-	memctx->offset += count;
+	memcpy(buf, memctx->base + memctx->offset, copy_size);
+	memctx->offset += copy_size;
 	return copy_size;
 }
 
