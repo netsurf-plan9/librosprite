@@ -1,63 +1,45 @@
-AR = ar
-CC = gcc
-LD = gcc
-DOXYGEN = doxygen
-INSTALL = install
-SED = sed
-MKDIR = mkdir
-PKG_CONFIG = pkg-config
+# Component settings
+COMPONENT := rosprite
+COMPONENT_VERSION := 0.0.1
+# Default to a static library
+COMPONENT_TYPE ?= lib-static
 
-ARFLAGS = -cru
-CFLAGS = -g -Wall -Wextra -Wundef -Wpointer-arith -Wcast-align \
+# FIXME
+# palette2c tool needs building and installing as binary target
+# examples/example.c needs a build target
+
+# Setup the tooling
+PREFIX ?= /opt/netsurf
+NSSHARED ?= $(PREFIX)/share/netsurf-buildsystem
+include $(NSSHARED)/makefiles/Makefile.tools
+
+# Toolchain flags
+WARNFLAGS := -Wall -Wextra -Wundef -Wpointer-arith -Wcast-align \
 	-Wwrite-strings -Wstrict-prototypes \
-	-Wnested-externs -Werror -pedantic -std=c99 \
+	-Wnested-externs -pedantic -std=c99 \
 	-Wno-format-zero-length -Wformat-security -Wstrict-aliasing=2 \
 	-Wmissing-format-attribute -Wunused -Wunreachable-code \
 	-Wformat=2 -Werror-implicit-function-declaration \
 	-Wmissing-declarations -Wmissing-prototypes
-LDFLAGS = -g -L./
 
-# Installation prefix, if not already defined (e.g. on command line)
-PREFIX ?= /usr/local
-DESTDIR ?=
+# BeOS/Haiku standard library headers create warnings
+ifneq ($(TARGET),beos)
+  WARNFLAGS := $(WARNFLAGS) -Werror
+endif
 
-.PHONY: all clean docs install uninstall
+CFLAGS := -I$(CURDIR)/include/ $(WARNFLAGS) $(CFLAGS)
 
-all: librosprite.a
+ifneq ($(GCCVER),2)
+  CFLAGS := $(CFLAGS) -std=c99
+else
+  # __inline__ is a GCCism
+  CFLAGS := $(CFLAGS) -Dinline="__inline__"
+endif
 
-example: librosprite.a example.o
-	${LD} -o $@ example.o ${LDFLAGS} \
-		$(shell PKG_CONFIG_PATH=.:$(PKG_CONFIG_PATH) $(PKG_CONFIG) --cflags --libs sdl librosprite)
+include $(NSBUILD)/Makefile.top
 
-palette2c: librosprite.a palette2c.o
-	${LD} -o $@ palette2c.o ${LDFLAGS} \
-		$(shell PKG_CONFIG_PATH=.:$(PKG_CONFIG_PATH) $(PKG_CONFIG) --cflags --libs librosprite)
-
-librosprite.a: librosprite.o librosprite.pc
-	${AR} ${ARFLAGS} librosprite.a librosprite.o
-
-librosprite.pc: librosprite.pc.in
-	$(SED) -e 's#PREFIX#$(PREFIX)#' librosprite.pc.in > librosprite.pc
-
-%.o: %.c
-	${CC} -c ${CFLAGS} -o $@ $<
-
-docs:
-	${DOXYGEN}
-
-clean:
-	rm -f $(wildcard *.o) $(wildcard *.a) example palette2c librosprite.pc
-	rm -rf doc
-
-install: librosprite.a librosprite.pc
-	$(MKDIR) -p $(DESTDIR)$(PREFIX)/lib/pkgconfig
-	$(MKDIR) -p $(DESTDIR)$(PREFIX)/lib
-	$(MKDIR) -p $(DESTDIR)$(PREFIX)/include
-	$(INSTALL) --mode=644 -t $(DESTDIR)$(PREFIX)/lib librosprite.a
-	$(INSTALL) --mode=644 -t $(DESTDIR)$(PREFIX)/include librosprite.h
-	$(INSTALL) --mode=644 -t $(DESTDIR)$(PREFIX)/lib/pkgconfig librosprite.pc
-
-uninstall:
-	rm $(DESTDIR)$(PREFIX)/lib/librosprite.a
-	rm $(DESTDIR)$(PREFIX)/include/librosprite.h
-	rm $(DESTDIR)$(PREFIX)/lib/pkgconfig/librosprite.pc
+# Extra installation rules
+I := /include
+INSTALL_ITEMS := $(INSTALL_ITEMS) $(I):include/librosprite.h
+INSTALL_ITEMS := $(INSTALL_ITEMS) /lib/pkgconfig:lib$(COMPONENT).pc.in
+INSTALL_ITEMS := $(INSTALL_ITEMS) /lib:$(OUTPUT)

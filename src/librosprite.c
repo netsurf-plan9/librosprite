@@ -711,6 +711,7 @@ static uint32_t rosprite_palette_lookup(struct rosprite* sprite, uint32_t pixel)
 			translated_pixel = sprite_1bpp_palette[pixel];
 			break;
 		default:
+			translated_pixel = 0;
 			assert(false);
 		}
 	}

@@ -5,6 +5,6 @@ includedir=${prefix}/include
 
 Name: librosprite
 Description: Loads RISC OS sprite files
-Version: 0.0.1
+Version: VERSION
 Libs: -L${libdir} -lrosprite
 Cflags: -I${includedir}
