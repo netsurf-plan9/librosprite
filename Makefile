@@ -18,7 +18,7 @@ WARNFLAGS := -Wall -Wextra -Wundef -Wpointer-arith -Wcast-align \
 	-Wwrite-strings -Wstrict-prototypes \
 	-Wnested-externs -pedantic -std=c99 \
 	-Wno-format-zero-length -Wformat-security -Wstrict-aliasing=2 \
-	-Wmissing-format-attribute -Wunused -Wunreachable-code \
+	-Wmissing-format-attribute -Wunused \
 	-Wformat=2 -Werror-implicit-function-declaration \
 	-Wmissing-declarations -Wmissing-prototypes
 
