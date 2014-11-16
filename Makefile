@@ -23,7 +23,7 @@ WARNFLAGS := -Wall -Wextra -Wundef -Wpointer-arith -Wcast-align \
 	-Wmissing-declarations -Wmissing-prototypes
 
 # BeOS/Haiku standard library headers create warnings
-ifneq ($(TARGET),beos)
+ifneq ($(BUILD),i586-pc-haiku)
   WARNFLAGS := $(WARNFLAGS) -Werror
 endif
 
