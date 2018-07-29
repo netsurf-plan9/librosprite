@@ -21,7 +21,11 @@
 /**
  * Reads four bytes, 00, 11, 22 and 33, of a byte array b to give 0x33221100.
  */
-#define BTUINT(b) (b[0] | (b[1] << 8) | (b[2] << 16) | (b[3] << 24))
+#define BTUINT(b)              \
+		((unsigned)b[0]        | \
+		((unsigned)b[1] <<  8) | \
+		((unsigned)b[2] << 16) | \
+		((unsigned)b[3] << 24))
 
 /**
  * Reverse the byte order of a word such that 0xAABBCCDD becomes 0xDDCCBBAA.
@@ -559,7 +563,7 @@ static rosprite_error rosprite_load_high_color(uint8_t* image_in, uint8_t* mask,
 	uint32_t currentByteIndex = 0;
 	uint32_t j, x, y, x_pixels, pixel;
 	bool has_alpha_pixel_data = false;
-	uint8_t b;
+	uint32_t b;
 	bool old_has_alpha;
 
 	if (sprite->has_mask) {
@@ -809,9 +813,9 @@ static uint32_t rosprite_upscale_color(uint32_t pixel, struct rosprite_mode* mod
 			assert(green < 32);
 			assert(blue < 32);
 
-			pixel =   (sprite_16bpp_translate[red] << 24)
-					| (sprite_16bpp_translate[green] << 16)
-					| (sprite_16bpp_translate[blue] << 8);
+			pixel = ((uint32_t)sprite_16bpp_translate[red]   << 24)|
+			        ((uint32_t)sprite_16bpp_translate[green] << 16)|
+			        ((uint32_t)sprite_16bpp_translate[blue]  <<  8);
 		}
 		break;
 	case 8:
